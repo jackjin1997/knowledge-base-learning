@@ -18,6 +18,7 @@
     <li><a href="#rl">专题：RL 学检索谱系</a></li>
     <li><a href="#memory">专题：记忆系统两年演化</a></li>
     <li><a href="#y2026">2026 上半年编年</a></li>
+    <li><a href="#wiki">专题：Agent + Wiki</a></li>
     <li><a href="#now">站在 2026.07 的判断</a></li>
     <li><a href="#refs">参考资料</a></li>
   </ol>
@@ -123,8 +124,43 @@
   </div>
 </section>
 
+<section id="wiki">
+  <h2><span class="n">§6</span>专题：Agent + Wiki——知识从「检索对象」变成「编译产物」</h2>
+  <p>2026 年 4 月起你大概率在时间线上刷到过「wiki」。这波热度是两层叠加：</p>
+
+  <h3>第一层铺垫（2025）：万物 wiki 化的产品线</h3>
+  <table>
+    <tr><th>产品</th><th>时间</th><th>做什么</th><th>要点</th></tr>
+    <tr><td><b>DeepWiki</b>（Cognition）</td><td>2025.04</td><td>URL 里 github.com 换成 deepwiki.com，即得仓库的 wiki 式文档 + 架构图 + 问答</td><td class="vs">Devin Wiki 的免费公开版，索引 5 万+ 仓库；可用 <code>.devin/wiki.json</code> 引导页面结构（≤30 页）；2025.05 推官方 MCP server 供其他 agent 调用。闭源；开源复刻 <b>DeepWiki-Open</b>（17k stars）流程可查：克隆 → 代码切块 embedding → LLM 先定页面结构再逐页生成 → mermaid 画图，问答走 RAG</td></tr>
+    <tr><td><b>Zread.ai</b>（智谱）</td><td>2025.07</td><td>「国产 DeepWiki」，GLM 底座</td><td class="vs">中文语境优化，有 CLI 可本地生成</td></tr>
+    <tr><td><b>Grokipedia</b>（xAI）</td><td>2025.10</td><td>AI 生成的百科：上线 88.5 万条目，2026.02 破 610 万（≈英文维基 79%）</td><td class="vs">争议最大：部分条目近乎逐字 fork Wikipedia、用户不能直接编辑只能提建议由 AI 审核、被多方指出偏向与事实错误——「AI 批量生成百科」可行性与可信度的对照试验</td></tr>
+    <tr><td><b>Code Wiki</b>（Google）</td><td>2025.11</td><td>公开仓库的持续自动维护 wiki</td><td class="vs">主打与 DeepWiki 的差异点：<b>代码变更后文档自动重建</b>；Gemini 聊天以 wiki 为上下文答题</td></tr>
+  </table>
+
+  <h3>第二层导火索（2026.04）：Karpathy 的《llm-wiki》</h3>
+  <p>2026 年 4 月 4 日 Karpathy 发布 gist《llm-wiki》，推文浏览量 1700 万+，gist 一周 5000+ stars、两上 HN 首页。他对 RAG 的批评一句话：<b>「没有积累」——每次查询都对原始 chunk 重新理解，昨天综合出的认识今天全部丢弃</b>。方案是让 agent 增量维护一个 Markdown wiki，把综合（synthesis）从查询时挪到写入时：</p>
+  <div class="three">
+    <div class="mini"><div class="h">三层结构</div><p><code>raw/</code> 不可变原始资料；<code>wiki/</code> LLM 全权维护的实体页/概念页/综述页，用 <code>[[双链]]</code> 互联，<code>index.md</code> 做全局目录；schema 文件（如 CLAUDE.md）定义命名规范与工作流。</p></div>
+    <div class="mini"><div class="h">三个操作</div><p><b>ingest</b>：消化新资料，一次更新 10–15 个相关页面；<b>query</b>：从 index.md 导航展开作答，好答案回填为新页面；<b>lint</b>：周期体检——矛盾、过期论断、孤儿页、缺失交叉引用。</p></div>
+    <div class="mini"><div class="h">关键判断</div><p>约百篇来源的中等规模<b>不需要任何 embedding 基础设施</b>；wiki 之所以维护得下去，是因为 LLM 让维护成本趋近于零。「Obsidian 是 IDE，LLM 是程序员，wiki 是代码库。」</p></div>
+  </div>
+  <p>社区 48 小时内跟进：Graphify（AST 本地解析 + SHA256 缓存 + git hook 自动更新，宣称单查询 token 降 71.5 倍——厂商自报）、Hermes Agent 内置 wiki Skill、OpenClaw memory-wiki、跨 CLI 的 llm-wiki-agent。</p>
+
+  <h3>放进本教程的坐标系里看</h3>
+  <ul>
+    <li><b>思想不新，形态新</b>：「预生成结构化中间表示、拿索引期算力换查询期质量」正是 GraphRAG 社区报告（<a href="04-graphrag.html">第 4 章</a>）和 RAPTOR 摘要树（<a href="06-pageindex.html">第 6 章</a>）的思想——wiki 是它的<b>人类可读、agent 可编辑、git 可版本化</b>版本。</li>
+    <li><b>检索方式是导航不是相似度</b>：index.md 是入口、双链是图的边，agent 像人读维基一样逐跳展开——天然多跳，且全程可 grep、可 git diff、可人工审查。这与 PageIndex 树上推理、Claude Code grep 检索同属「结构 + 推理」一族。</li>
+    <li><b>与记忆系统合流</b>：A-MEM（2025.02）早已提出 Zettelkasten 式互联笔记做 agent 记忆；Karpathy 版把它平民化成「一个文件夹 + 三个 prompt」。Wiki 从给人看的文档，变成 <b>agent 的可读写长期记忆格式</b>——这是「wiki 复兴」的真正内核。</li>
+    <li><b>适用边界（社区共识）</b>：个人/小团队、10 万 token 级语料优于 RAG；大规模、高频变更、多用户并发语料仍属 RAG 与托管检索。反方论点也值得记录：HN 有人称其为「多几步的 RAG」，并援引模型自噬研究（Shumailov et al., Nature 2024）质疑 LLM 反复改写自产内容的漂移风险——lint 操作正是对这个风险的工程回应。</li>
+  </ul>
+  <div class="box tip">
+    <div class="t"><span class="ic">动手</span>低成本试法</div>
+    <p>这套模式不需要任何新工具：在本 workspace 建一个 <code>wiki/</code> 目录，让 Claude Code 读完一个仓库后按「实体页 + index.md + 双链」写笔记，下次提问先让它查自己的 wiki——你会直观感受到「编译过的知识」和「现场检索原文」的差别。事实上你正在读的这套教程，本身就是一次 ingest + 综合的产物。</p>
+  </div>
+</section>
+
 <section id="now">
-  <h2><span class="n">§6</span>站在 2026.07 的判断</h2>
+  <h2><span class="n">§7</span>站在 2026.07 的判断</h2>
   <table>
     <tr><th>观察</th><th>对从业者的含义</th></tr>
     <tr><td><b>托管化不可逆</b>：Gemini File Search / OpenAI file_search 把「分块-嵌入-检索-引用」整条管道做成了 API</td><td class="vs">通用场景自建管道的理由只剩：私有化合规、特殊语料（第 2 章的手艺仍是调优和评估这些托管服务的基础）</td></tr>
@@ -132,6 +168,7 @@
     <tr><td><b>评测 rubric 化</b>：BrowseComp 饱和，新基准考「整篇报告质量」且最强 agent 通过率 &lt;50%</td><td class="vs">deep research 远未做完；「检索得到」已解决，「综合得好」是下一战场</td></tr>
     <tr><td><b>记忆进入检验期</b>：产品升维平台，学术出现批判声音</td><td class="vs">对记忆系统的宣称保持第 5 章式的怀疑：看独立基准，不看厂商自报</td></tr>
     <tr><td><b>多模态检索成熟</b>：embedding + reranker 成对的多模态方案 + 光学压缩持续迭代</td><td class="vs">视觉密集语料（第 3 章 §8 的 ColPali 路线）从「前沿实验」变成「可选默认」</td></tr>
+    <tr><td><b>知识开始被「编译」</b>：DeepWiki/Code Wiki 批量 wiki 化仓库，Karpathy 的 llm-wiki 让 agent 为自己维护知识库（§6）</td><td class="vs">「写入时综合」与「查询时组装」成为一对新的架构选择；中小规模知识库出现了零向量库的可行路径</td></tr>
   </table>
   <div class="box key">
     <div class="t"><span class="ic">收束</span>两年的一句话总结</div>
@@ -140,7 +177,7 @@
 </section>
 
 <section id="refs" class="refs">
-  <h2><span class="n">§7</span>参考资料</h2>
+  <h2><span class="n">§8</span>参考资料</h2>
   <ul>
     <li><span class="rt">OpenAI Deep Research</span> — <a href="https://openai.com/index/introducing-deep-research/">openai.com/index/introducing-deep-research</a>；Perplexity 免费化：<a href="https://simonwillison.net/2025/Feb/16/introducing-perplexity-deep-research/">Simon Willison 评述</a></li>
     <li><span class="rt">稀疏注意力双响</span> — DeepSeek NSA：<a href="https://arxiv.org/abs/2502.11089">arxiv.org/abs/2502.11089</a>；Moonshot MoBA：<a href="https://arxiv.org/abs/2502.13189">arxiv.org/abs/2502.13189</a></li>
@@ -158,6 +195,10 @@
     <li><span class="rt">2026：长上下文降价</span> — DeepSeek V4：<a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro">HuggingFace</a>；jina-embeddings-v5：<a href="https://huggingface.co/jinaai/jina-embeddings-v5-text-small">HuggingFace</a></li>
     <li><span class="rt">2026：记忆平台化与检验</span> — Anthropic 持久记忆 beta：<a href="https://www.edtechinnovationhub.com/news/anthropic-brings-persistent-memory-to-claude-managed-agents-in-public-beta">报道</a>；Letta 转型：<a href="https://www.letta.com/blog/our-next-phase/">letta.com/blog</a>；Zep Context Lake：<a href="https://blog.getzep.com/graphiti-hits-20k-stars-mcp-server-1-0/">getzep 博客</a>；Mem0 年度报告：<a href="https://mem0.ai/blog/state-of-ai-agent-memory-2026">State of AI Agent Memory 2026</a>；批判论文：<a href="https://arxiv.org/abs/2604.27707">2604.27707</a>；记忆演化综述：<a href="https://arxiv.org/abs/2605.06716">2605.06716</a></li>
     <li><span class="rt">2026：产业动态</span> — Qdrant B 轮：<a href="https://www.techtarget.com/searchdatamanagement/news/366640132/Qdrant-raises-50M-in-funding-to-fuel-vector-database-growth">TechTarget</a>；Dify：<a href="https://dify.ai/blog/introducing-knowledge-pipeline">Knowledge Pipeline</a>；RAGFlow：<a href="https://github.com/infiniflow/ragflow/releases">Releases</a>；豆包 2.1 Pro：<a href="https://www.news.cn/tech/20260623/acd6f2f27fc34459a7d1684c03278431/c.html">新华网</a>；Sonnet 5：<a href="https://techcrunch.com/2026/06/30/anthropic-launches-claude-sonnet-5-as-a-cheaper-way-to-run-agents/">TechCrunch</a></li>
+    <li><span class="rt">Agent + Wiki：Karpathy《llm-wiki》</span> — <a href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f">gist 原文（2026.04.04）</a>；一个月回顾：<a href="https://www.rdworldonline.com/is-karpathys-viral-llm-wiki-helpful-mostly-yes-one-month-in/">R&amp;D World</a>；HN 反应汇总：<a href="https://insights.marvin-42.com/articles/hacker-news-picks-up-karpathys-llm-wiki-pattern-for-persistent-knowledge-bases">marvin-42</a>；适用边界分析：<a href="https://particula.tech/blog/karpathy-llm-wiki-compiled-knowledge-vs-raq">Particula</a></li>
+    <li><span class="rt">Agent + Wiki：产品线</span> — DeepWiki：<a href="https://cognition.com/blog/deepwiki">Cognition 官方博客</a>、<a href="https://docs.devin.ai/work-with-devin/deepwiki">Devin 文档（wiki.json）</a>；DeepWiki-Open：<a href="https://github.com/asyncfuncai/deepwiki-open">GitHub</a>；Google Code Wiki：<a href="https://developers.googleblog.com/en/introducing-code-wiki-accelerating-your-code-understanding/">官方博客</a>；Zread：<a href="https://github.com/ZreadAI/zread_cli">zread_cli</a>；Graphify 复刻：<a href="https://www.qbitai.com/2026/04/396983.html">量子位</a></li>
+    <li><span class="rt">Agent + Wiki：Grokipedia 与争议</span> — <a href="https://en.wikipedia.org/wiki/Grokipedia">Wikipedia: Grokipedia</a>；<a href="https://www.techpolicy.press/with-grokipedia-topdown-control-of-knowledge-is-new-again/">TechPolicy.Press 批评</a>；规模数据：<a href="https://www.teslarati.com/elon-musk-grokipedia-surges-to-5-6m-articles-almost-79-percent-english-wikipedia/">Teslarati</a>（第三方统计口径不一，谨慎引用）</li>
+    <li><span class="rt">模型自噬风险（wiki 反方论据）</span> — Shumailov et al., "AI models collapse when trained on recursively generated data", Nature 2024. <a href="https://www.nature.com/articles/s41586-024-07566-y">nature.com/articles/s41586-024-07566-y</a></li>
   </ul>
 </section>
 
