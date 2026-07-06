@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>06 · PageIndex 精读 —— 无向量、推理式树搜索 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#idea">相似度 ≠ 相关度</a></li>
+    <li><a href="#tree">树构建：三条路径</a></li>
+    <li><a href="#node">递归细分与节点摘要</a></li>
+    <li><a href="#search">检索：Agent 在树上推理</a></li>
+    <li><a href="#raptor">对照：RAPTOR 与树族谱系</a></li>
+    <li><a href="#vs">与向量 RAG 的取舍</a></li>
+    <li><a href="#files">仓库导航</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html" class="cur">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 06 · Code Reading · ../PageIndex</div>
+  <h1>PageIndex 精读：不用向量，让 LLM 像人一样翻目录</h1>
+  <p class="lead">领域专家找答案不算余弦相似度——先看目录，推理该翻哪章，再翻到那几页。PageIndex（Vectify AI）把这个过程变成系统：文档 → 目录树，检索 → LLM 树搜索。零向量库。</p>
+  <div class="pills">
+    <span class="pill">范式 <b>reasoning-based retrieval</b></span>
+    <span class="pill">本地 <b>../PageIndex</b></span>
+    <span class="pill">声称 <b>FinanceBench 98.7%</b></span>
+    <span class="pill">形态 <b>树 + 三个工具</b></span>
+  </div>
+</header>
+
+<section id="idea">
+  <h2><span class="n">§1</span>核心论点：相似度 ≠ 相关度</h2>
+  <p>向量检索假设「语义相似的文本是相关的」。这个假设在两类场景系统性失效：</p>
+  <ul>
+    <li><b>专业长文档</b>：一份 300 页年报里，「流动性风险」在 20 个章节都出现，语义都相似——但审计师知道答案只在「财务报表附注 7」。判断依据是<b>文档结构与领域知识</b>，不是文本相似度。</li>
+    <li><b>需要推理的查询</b>：「这家公司的表外负债有多少」需要知道该看哪些附注、怎么交叉对照——这是推理链，不是最近邻查找。</li>
+  </ul>
+  <p>PageIndex 的方案：索引期把 PDF 解析成保留原生层级的<b>目录树</b>（节点 = 章节，带页码范围和摘要）；查询期让 LLM 读树结构、<b>推理</b>该进入哪个分支、取回那几页原文再回答。整个过程没有 embedding，没有向量库，没有 chunking。</p>
+  <div class="box key">
+    <div class="t"><span class="ic">定位</span>它是第 1 章五族中的「树族 + Agentic 族」交点</div>
+    <p>树提供结构（文档自身的包含关系），agent 提供检索策略（LLM 决定往哪走）。对照第 4、5 章：图 RAG 把「跨文档关联」结构化，PageIndex 把「单文档层级」结构化——它目前只支持单文档检索，多文档需要外层再套一层文档选择逻辑（仓库 examples/tutorials/doc-search/ 给了 metadata / semantics / description 三种策略）。</p>
+  </div>
+</section>
+
+<section id="tree">
+  <h2><span class="n">§2</span>树构建：三条路径</h2>
+  <p>主入口 <code>tree_parser()</code>（<span class="anchor-note">pageindex/page_index.py:1029</span>），先由 <code>check_toc()</code>（L696）探测目录情况，<code>meta_processor()</code>（L959）路由到三条路径之一：</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="ar8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
+      <rect x="260" y="10" width="200" height="46" rx="23" fill="#fdf7f2" stroke="#b5451f" stroke-width="1.5"/>
+      <text x="360" y="32" text-anchor="middle" font-size="12.5" font-weight="800" fill="#b5451f">前 20 页有目录（TOC）吗？</text>
+      <text x="360" y="48" text-anchor="middle" font-size="9.5" fill="#5c574f" font-family="monospace">find_toc_pages() L341 逐页 LLM 检测</text>
+      <line x1="270" y1="58" x2="125" y2="88" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar8)"/>
+      <line x1="360" y1="58" x2="360" y2="88" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar8)"/>
+      <line x1="450" y1="58" x2="595" y2="88" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar8)"/>
+      <text x="180" y="80" font-size="10.5" fill="#2f7d43" font-weight="700">有，带页码</text>
+      <text x="342" y="80" font-size="10.5" fill="#8a6d3b" font-weight="700">有，无页码</text>
+      <text x="500" y="80" font-size="10.5" fill="#a4551a" font-weight="700">没有</text>
+      <!-- path A -->
+      <rect x="15" y="92" width="220" height="150" rx="10" fill="#fff" stroke="#2f7d43"/>
+      <text x="125" y="114" text-anchor="middle" font-size="12" font-weight="800" fill="#2f7d43">路径 A：TOC + 页码</text>
+      <text x="125" y="136" text-anchor="middle" font-size="10.5" fill="#1c1a17">toc_transformer() L273</text>
+      <text x="125" y="151" text-anchor="middle" font-size="10" fill="#5c574f">TOC 文本 → 层级 JSON（"1.1"编号）</text>
+      <text x="125" y="172" text-anchor="middle" font-size="10.5" fill="#1c1a17">toc_index_extractor() L243</text>
+      <text x="125" y="187" text-anchor="middle" font-size="10" fill="#5c574f">标题对齐正文 → physical_index</text>
+      <text x="125" y="208" text-anchor="middle" font-size="10.5" fill="#1c1a17">calculate_page_offset() L394</text>
+      <text x="125" y="223" text-anchor="middle" font-size="10" fill="#5c574f">TOC 页码系统 vs 实际页码的偏移校正</text>
+      <!-- path B -->
+      <rect x="250" y="92" width="220" height="150" rx="10" fill="#fff" stroke="#8a6d3b"/>
+      <text x="360" y="114" text-anchor="middle" font-size="12" font-weight="800" fill="#8a6d3b">路径 B：TOC 无页码</text>
+      <text x="360" y="136" text-anchor="middle" font-size="10.5" fill="#1c1a17">process_toc_no_page_numbers() L597</text>
+      <text x="360" y="158" text-anchor="middle" font-size="10.5" fill="#1c1a17">add_page_number_to_toc() L461</text>
+      <text x="360" y="176" text-anchor="middle" font-size="10" fill="#5c574f">逐段让 LLM 在正文中定位</text>
+      <text x="360" y="191" text-anchor="middle" font-size="10" fill="#5c574f">每个 TOC 标题的物理页号</text>
+      <!-- path C -->
+      <rect x="485" y="92" width="220" height="150" rx="10" fill="#fff" stroke="#a4551a"/>
+      <text x="595" y="114" text-anchor="middle" font-size="12" font-weight="800" fill="#a4551a">路径 C：无 TOC</text>
+      <text x="595" y="136" text-anchor="middle" font-size="10.5" fill="#1c1a17">process_no_toc() L576</text>
+      <text x="595" y="154" text-anchor="middle" font-size="10" fill="#5c574f">page_list_to_group_text() L426 按 token 分组</text>
+      <text x="595" y="175" text-anchor="middle" font-size="10.5" fill="#1c1a17">generate_toc_init() L542 初始树</text>
+      <text x="595" y="196" text-anchor="middle" font-size="10.5" fill="#1c1a17">generate_toc_continue() L507</text>
+      <text x="595" y="211" text-anchor="middle" font-size="10" fill="#5c574f">增量续写：只输出新增节点</text>
+      <!-- verify -->
+      <line x1="125" y1="244" x2="320" y2="278" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar8)"/>
+      <line x1="360" y1="244" x2="360" y2="274" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar8)"/>
+      <line x1="595" y1="244" x2="400" y2="278" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar8)"/>
+      <rect x="230" y="278" width="260" height="44" rx="10" fill="#fbf7ee" stroke="#8a6d3b"/>
+      <text x="360" y="296" text-anchor="middle" font-size="11.5" font-weight="700" fill="#8a6d3b">verify_toc() L900 抽样校验</text>
+      <text x="360" y="312" text-anchor="middle" font-size="10" fill="#5c574f">映射错误 → fix_incorrect_toc() L760 异步并行修复</text>
+    </svg>
+    <figcaption>三条建树路径 + 统一校验。设计要点：LLM 输出的页码映射不可信，所以每条路径后都跟抽样验证与修复——「生成 + 校验」双循环。</figcaption>
+  </figure>
+  <p>拿到带页码的扁平章节列表后，纯代码把它变成树——「1.2.3」式结构编号驱动父子关系：</p>
+  <pre><code><span class="src">pageindex/utils.py:324-370（list_to_tree，节选）</span><span class="kw">def</span> <span class="fn">get_parent_structure</span>(structure):          <span class="cm"># "1.2.3" → "1.2"</span>
+    parts = <span class="fn">str</span>(structure).split(<span class="st">'.'</span>)
+    <span class="kw">return</span> <span class="st">'.'</span>.join(parts[:-<span class="nm">1</span>]) <span class="kw">if</span> <span class="fn">len</span>(parts) &gt; <span class="nm">1</span> <span class="kw">else</span> <span class="kw">None</span>
+
+<span class="kw">for</span> item <span class="kw">in</span> data:
+    node = {<span class="st">'title'</span>: item[<span class="st">'title'</span>], <span class="st">'start_index'</span>: ..., <span class="st">'nodes'</span>: []}
+    parent = get_parent_structure(item[<span class="st">'structure'</span>])
+    <span class="kw">if</span> parent <span class="kw">and</span> parent <span class="kw">in</span> nodes:
+        nodes[parent][<span class="st">'nodes'</span>].append(node)     <span class="cm"># 挂到父节点</span>
+    <span class="kw">else</span>:
+        root_nodes.append(node)</code></pre>
+</section>
+
+<section id="node">
+  <h2><span class="n">§3</span>递归细分与节点摘要</h2>
+  <p><b>大节点细分</b>（<span class="anchor-note">process_large_node_recursively() page_index.py:1000</span>）：一个「第 3 章」可能占 80 页，直接作为叶子太粗。当节点<b>同时</b>满足「页数 &gt; 10 且 token ≥ 20000」（config.yaml 的 <code>max_page_num_each_node</code> / <code>max_token_num_each_node</code>）时，对该节点内容重新跑一遍 <code>meta_processor()</code> 生成子树，递归进行。双条件设计避免了「页数多但内容稀」的表格章节被无谓切碎。</p>
+  <p><b>节点摘要</b>（可选，<code>if_add_node_summary: yes</code>）：树建好后扁平化所有节点，<code>asyncio.gather</code> 并行为每个节点生成一句「本节讲什么」的摘要——这是检索期 LLM 判断「该进哪个分支」的主要依据：</p>
+  <pre><code><span class="src">pageindex/utils.py:578-596</span><span class="kw">async def</span> <span class="fn">generate_summaries_for_structure</span>(structure, model=<span class="kw">None</span>):
+    nodes = structure_to_list(structure)                <span class="cm"># 树 → 扁平列表</span>
+    tasks = [generate_node_summary(n, model) <span class="kw">for</span> n <span class="kw">in</span> nodes]
+    summaries = <span class="kw">await</span> asyncio.gather(*tasks)            <span class="cm"># 全节点并行</span>
+    <span class="kw">for</span> node, summary <span class="kw">in</span> <span class="fn">zip</span>(nodes, summaries):
+        node[<span class="st">'summary'</span>] = summary                       <span class="cm"># 写回树</span>
+    <span class="kw">return</span> structure</code></pre>
+  <p>最终产物是一个 JSON 树（<code>results/{doc}_structure.json</code>）：每个节点有 title、start/end_index（页码范围）、summary、子节点。默认<b>不存原文</b>（<code>if_add_node_text: no</code>）——原文检索期按页码现取，树本身保持轻量。</p>
+</section>
+
+<section id="search">
+  <h2><span class="n">§4</span>检索：Agent 拿三个工具在树上推理</h2>
+  <p>检索侧没有「检索算法」，只有一个带三个工具的 agent（<span class="anchor-note">examples/agentic_vectorless_rag_demo.py</span>）。这就是第 1 章说的「检索 = agent 的工具调用」的最纯粹形态：</p>
+  <div class="three">
+    <div class="mini"><div class="h"><code>get_document()</code></div><p>retrieve.py:81 — 元数据：页数、类型、文档描述。先确认「这是什么、多大」。</p></div>
+    <div class="mini"><div class="h"><code>get_document_structure()</code></div><p>retrieve.py:100 — 完整树结构，<b>剥掉 text 字段省 token</b>。LLM 读它决定去哪。</p></div>
+    <div class="mini"><div class="h"><code>get_page_content(pages)</code></div><p>retrieve.py:110 — 按页取原文，支持 "5-7"、"3,8"、"12" 三种格式。</p></div>
+  </div>
+  <pre><code><span class="src">examples/agentic_vectorless_rag_demo.py:44-52（agent 系统提示）</span>You are PageIndex, a document QA assistant.
+
+TOOL USE:
+- Call get_document() first to confirm status and page/line count.
+- Call get_document_structure() to identify relevant page ranges.
+- Call get_page_content(pages="5-7") with tight ranges;
+  never fetch the whole document.
+- Before each tool call, output one short sentence explaining reason.
+
+Answer based only on tool output. Be concise.</code></pre>
+  <p>四步循环：确认规模 → 读树推理相关章节 → <b>紧密页码范围</b>取原文（提示词明令禁止整本拉取）→ 基于原文作答。每次调用前强制输出一句理由——检索路径完全可审计：答案错了能看到它在哪一步走偏。</p>
+  <div class="box tip">
+    <div class="t"><span class="ic">细节</span>为什么树结构要剥掉原文</div>
+    <p>树（标题 + 摘要 + 页码）是 LLM 的「地图」，通常几千 token 就能装下几百页文档的骨架——这让单次上下文能容纳完整全局视野，这正是向量 RAG 永远给不了的东西：<b>chunk 看不到自己在文档中的位置，树节点天生知道</b>。</p>
+  </div>
+</section>
+
+<section id="raptor">
+  <h2><span class="n">§5</span>对照：RAPTOR 与树族谱系</h2>
+  <p>树族有两条支线，结构来源完全不同：</p>
+  <table>
+    <tr><th></th><th>RAPTOR（ICLR 2024）</th><th>PageIndex</th></tr>
+    <tr><td><b>树从哪来</b></td><td>自建：embedding → GMM 软聚类 → LLM 摘要每簇 → 递归向上</td><td>文档原生：TOC / 章节层级直接映射</td></tr>
+    <tr><td><b>检索方式</b></td><td>collapsed tree 上做<b>向量检索</b>（仍是相似度）</td><td>LLM <b>推理</b>下钻（无向量）</td></tr>
+    <tr><td><b>成本重心</b></td><td>索引期（每簇一次 LLM 摘要）</td><td>查询期（每问多轮 LLM 推理）</td></tr>
+    <tr><td><b>擅长</b></td><td>「综合理解型」问题命中摘要层；QuALITY 绝对提升 20%</td><td>结构清晰的专业文档精确定位；FinanceBench 98.7%（官方声称）</td></tr>
+    <tr><td><b>依赖</b></td><td>聚类质量</td><td>文档要有可提取的结构；无结构文档退化到路径 C 自建树</td></tr>
+  </table>
+  <p class="sub">与图族的本质区别（承接第 4、5 章）：树是「包含关系」（单文档内的抽象层级），图是「关联关系」（跨文档的任意拓扑）。多跳跨文档问题树帮不上忙；单文档内的层级定位图也不擅长。</p>
+</section>
+
+<section id="vs">
+  <h2><span class="n">§6</span>与向量 RAG 的取舍</h2>
+  <table>
+    <tr><th>维度</th><th>PageIndex</th><th>向量 RAG</th></tr>
+    <tr><td>检索机制</td><td>LLM 推理 + 树遍历</td><td>ANN 相似度</td></tr>
+    <tr><td>基础设施</td><td class="good">零向量库，一个 JSON 文件</td><td class="vs">embedding 服务 + 向量库</td></tr>
+    <tr><td>延迟</td><td class="bad">高——每问 3–5 次 LLM 调用</td><td class="good">毫秒级 ANN + 1 次 LLM</td></tr>
+    <tr><td>单次查询成本</td><td class="bad">高（多轮推理 token）</td><td class="good">低</td></tr>
+    <tr><td>可解释性</td><td class="good">完整推理路径 + 页码引用</td><td class="bad">相似度分数黑箱</td></tr>
+    <tr><td>多轮对话</td><td class="good">对话历史自然作为检索上下文</td><td class="vs">需要重写 query</td></tr>
+    <tr><td>跨文档</td><td class="bad">需外层文档选择逻辑</td><td class="good">统一向量空间原生支持</td></tr>
+  </table>
+  <div class="box key">
+    <div class="t"><span class="ic">判断</span>什么时候选它</div>
+    <p>文档<b>长、专业、结构良好</b>（财报、法规、技术手册），查询<b>高价值、容忍秒级延迟</b>（审计、尽调、合规问答）——这是 PageIndex 的主场，官方案例 Mafin 2.5 做的正是金融文档。海量短文档、高 QPS、低延迟场景请回第 2 章的管道。它的成本结构与 GraphRAG 正好互为镜像：GraphRAG 索引贵查询廉，PageIndex 索引廉查询贵——「你的查询量摊得平哪边」是最实际的选型标准。</p>
+  </div>
+</section>
+
+<section id="files">
+  <h2><span class="n">§7</span>仓库导航</h2>
+  <div class="filemap">
+    <div class="f"><span class="p">run_pageindex.py</span><span class="d">CLI 入口：python3 run_pageindex.py --pdf_path doc.pdf</span></div>
+    <div class="f"><span class="p">pageindex/page_index.py</span><span class="d">树构建全部逻辑：三路径、校验修复、递归细分（§2–3）</span></div>
+    <div class="f"><span class="p">pageindex/utils.py</span><span class="d">list_to_tree、post_processing、摘要生成</span></div>
+    <div class="f"><span class="p">pageindex/retrieve.py + client.py</span><span class="d">三个检索工具的实现与封装（§4）</span></div>
+    <div class="f"><span class="p">pageindex/config.yaml</span><span class="d">toc_check_page_num=20、细分阈值、模型选择、是否存摘要/原文</span></div>
+    <div class="f"><span class="p">examples/agentic_vectorless_rag_demo.py</span><span class="d">完整 agentic 检索示例——理解本章最快的入口</span></div>
+    <div class="f"><span class="p">examples/tutorials/doc-search/</span><span class="d">多文档选择的三种策略（metadata / semantics / description）</span></div>
+    <div class="f"><span class="p">cookbook/</span><span class="d">Jupyter 教程：基础 RAG、vision RAG、agentic 检索</span></div>
+  </div>
+  <div class="box tip">
+    <div class="t"><span class="ic">读码</span>建议阅读顺序</div>
+    <p>① agentic_vectorless_rag_demo.py（150 行看懂全部理念）→ ② retrieve.py 三个工具 → ③ page_index.py 的 check_toc/meta_processor 路由 → ④ 路径 C（无 TOC 增量建树）——它是「用 LLM 从平文本构造结构」的通用模式，价值超出本项目。</p>
+  </div>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§8</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">代码与行号</span> — 本地检出 <code>../PageIndex</code>（2026-07）；上游：<a href="https://github.com/VectifyAI/PageIndex">github.com/VectifyAI/PageIndex</a>；官网：<a href="https://pageindex.ai/">pageindex.ai</a></li>
+    <li><span class="rt">FinanceBench 98.7% 声称</span> — 官方 README 与 Mafin 2.5 案例（Vectify 自报数字，非独立复测——引用时注意口径）：<a href="https://github.com/VectifyAI/PageIndex">仓库 README</a></li>
+    <li><span class="rt">RAPTOR（对照）</span> — Sarthi et al., ICLR 2024. <a href="https://arxiv.org/abs/2401.18059">arxiv.org/abs/2401.18059</a>（QuALITY +20% 数字来源）</li>
+    <li><span class="rt">FinanceBench 基准本身</span> — Islam et al. <a href="https://arxiv.org/abs/2311.11944">arxiv.org/abs/2311.11944</a></li>
+    <li><span class="rt">多文档选择策略</span> — 仓库内 <code>examples/tutorials/doc-search/</code>（metadata / semantics / description 三篇）</li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="05-lightrag.html"><span class="lbl">← 上一页</span><div class="ti">LightRAG 精读</div></a>
+  <a href="07-frontier.html" class="next"><span class="lbl">下一页 →</span><div class="ti">前沿方案</div></a>
+</div>
+<footer>knowledge-base-learning · 代码行号基于本地 ../PageIndex 检出（2026-07） · 版本更新后行号可能漂移</footer>
+</main>
+</div>
+</body>
+</html>

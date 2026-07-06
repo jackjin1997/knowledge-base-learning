@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>04 · 微软 GraphRAG 精读 —— 社区分层摘要与全局问题 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#problem">它解决什么问题</a></li>
+    <li><a href="#pipeline">索引流水线 8 步</a></li>
+    <li><a href="#gleaning">Gleaning：多轮补抽</a></li>
+    <li><a href="#leiden">Leiden 社区与报告</a></li>
+    <li><a href="#query">查询侧 4 种模式</a></li>
+    <li><a href="#cost">成本画像与优化</a></li>
+    <li><a href="#lazy">LazyGraphRAG 的纠偏</a></li>
+    <li><a href="#files">仓库导航</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html" class="cur">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 04 · Code Reading · ../graphrag</div>
+  <h1>微软 GraphRAG 精读：为全局问题付出的代价</h1>
+  <p class="lead">「这个数据集的主要主题是什么？」——没有任何一个 chunk 包含这个答案，向量检索从原理上就不适用。GraphRAG 用实体图 + Leiden 社区 + 预生成摘要回答这类问题，本章沿代码走一遍它的全部机制与成本。</p>
+  <div class="pills">
+    <span class="pill">论文 <b>arXiv:2404.16130</b></span>
+    <span class="pill">本地 <b>../graphrag</b></span>
+    <span class="pill">核心 <b>Leiden + 社区报告</b></span>
+    <span class="pill">查询 <b>Map-Reduce</b></span>
+  </div>
+</header>
+
+<section id="problem">
+  <h2><span class="n">§1</span>它解决什么问题：QFS，不是检索</h2>
+  <p>论文《From Local to Global》把矛头指向传统 RAG 的一个根本盲区：<b>全局性问题（global questions）本质是查询聚焦式摘要（Query-Focused Summarization, QFS）任务，不是显式检索任务</b>。「主要风险是什么」「有哪些反复出现的主题」这类问题的答案分散在整个语料中，top-k 相似度检索无论 k 取多少都拿不到。</p>
+  <p>GraphRAG 的解法是把「理解语料全局结构」的工作<b>前移到索引期</b>：</p>
+  <ol>
+    <li>LLM 遍历所有文本块，抽取实体、关系及其描述，构建实体图；</li>
+    <li>Leiden 算法做层级社区检测，自底向上为每个社区<b>预生成</b>「社区报告」——独立于任何查询存在的多分辨率全局摘要。</li>
+  </ol>
+  <p>论文报告：在约 100 万 token 语料上，对 sensemaking 类问题，答案全面性（comprehensiveness）和多样性（diversity）以 <b>70–80% 胜率</b>优于向量 RAG。注意这是 LLM-as-judge 的 win-rate（第 2 章讲过这类数字的局限）；独立复测中它在多跳 QA 上的 F1 是 38.5（MuSiQue），低于强稠密检索器的 45.7——<b>GraphRAG 赢在全局综述，不赢在事实检索</b>。</p>
+</section>
+
+<section id="pipeline">
+  <h2><span class="n">§2</span>索引流水线：8 个 workflow</h2>
+  <p>索引被编排为一串 workflow，注册在 pipeline factory（<code>packages/graphrag/graphrag/index/workflows/factory.py:52-97</code>），由 <code>api/index.py:71-83</code> 的 <code>build_index → run_pipeline</code> 逐个执行：</p>
+  <div class="flow">
+    <div class="step"><div class="dot">1</div><div class="body"><b>create_base_text_units</b> — 分块<div class="d">token 滑动窗口，默认 1200 token、overlap 100：<span class="fnm">graphrag-chunking/chunking/token_chunker.py:45-69</span>，<code>start_idx += chunk_size − overlap</code>。无 LLM。</div></div></div>
+    <div class="step"><div class="dot">2</div><div class="body"><b>extract_graph</b> — 实体/关系抽取 ⚠ 成本大头（≈75%）<div class="d">每个 text_unit 一次 LLM 调用 + gleaning 补抽（§3）：<span class="fnm">index/operations/extract_graph/extract_graph.py:23-73</span></div></div></div>
+    <div class="step"><div class="dot">3</div><div class="body"><b>summarize_descriptions</b> — 描述合并<div class="d">同名实体在多个 chunk 中的描述先列表聚合，超 token 预算时 LLM 摘要：<span class="fnm">operations/summarize_descriptions/description_summary_extractor.py:89-117</span></div></div></div>
+    <div class="step"><div class="dot">4</div><div class="body"><b>finalize_graph</b> — 计算度数、最终化节点与边</div></div>
+    <div class="step"><div class="dot">5</div><div class="body"><b>extract_covariates</b> — claims 抽取（可选，默认关）</div></div>
+    <div class="step alt"><div class="dot">6</div><div class="body"><b>create_communities</b> — Leiden 分层社区检测 ★ 核心资产<div class="d"><span class="fnm">graphs/hierarchical_leiden.py:11-26</span>，调 graspologic_native，<code>max_cluster_size=10</code>。图算法，无 LLM。</div></div></div>
+    <div class="step alt"><div class="dot">7</div><div class="body"><b>create_community_reports</b> — 逐层生成社区报告 ⚠ 第二成本源<div class="d"><span class="fnm">operations/summarize_communities/summarize_communities.py:61-73</span>；上下文超预算时用<b>子社区报告替换原始数据</b>——分层递归压缩。</div></div></div>
+    <div class="step"><div class="dot">8</div><div class="body"><b>generate_text_embeddings</b> — text_units / entities / reports 向量化</div></div>
+    <div class="cap">与第 2 章管道对照：GraphRAG 在「chunking 之后、embedding 之前」插入了 5 步图构建。这 5 步就是它的全部差异，也是全部成本来源。</div>
+  </div>
+
+  <h3>实体抽取的输出格式</h3>
+  <p>抽取 prompt（<code>prompts/index/extract_graph.py:6-126</code>）要求 LLM 输出分隔符格式的记录流，entity_types 可配置：</p>
+  <pre><code><span class="src">prompts/index/extract_graph.py（格式约定）</span>("entity"&lt;|&gt;实体名&lt;|&gt;实体类型&lt;|&gt;描述)
+##
+("relationship"&lt;|&gt;源实体&lt;|&gt;目标实体&lt;|&gt;关系描述&lt;|&gt;强度)
+##
+...
+&lt;|COMPLETE|&gt;</code></pre>
+  <p>多个 chunk 抽到同一实体时的聚合逻辑是纯 pandas（无 LLM）——描述列表化留给步骤 3 处理，关系权重直接求和：</p>
+  <pre><code><span class="src">index/operations/extract_graph/extract_graph.py:104-130</span><span class="kw">def</span> <span class="fn">_merge_entities</span>(entity_dfs) -&gt; pd.DataFrame:
+    all_entities = pd.concat(entity_dfs, ignore_index=<span class="kw">True</span>)
+    <span class="kw">return</span> (all_entities
+        .groupby([<span class="st">"title"</span>, <span class="st">"type"</span>], sort=<span class="kw">False</span>)
+        .agg(description=(<span class="st">"description"</span>, <span class="kw">list</span>),   <span class="cm"># 描述列表化，待摘要</span>
+             text_unit_ids=(<span class="st">"source_id"</span>, <span class="kw">list</span>),
+             frequency=(<span class="st">"source_id"</span>, <span class="st">"count"</span>)))
+
+<span class="kw">def</span> <span class="fn">_merge_relationships</span>(relationship_dfs) -&gt; pd.DataFrame:
+    <span class="kw">return</span> (pd.concat(relationship_dfs)
+        .groupby([<span class="st">"source"</span>, <span class="st">"target"</span>], sort=<span class="kw">False</span>)
+        .agg(description=(<span class="st">"description"</span>, <span class="kw">list</span>),
+             weight=(<span class="st">"weight"</span>, <span class="st">"sum"</span>)))          <span class="cm"># 权重求和</span></code></pre>
+</section>
+
+<section id="gleaning">
+  <h2><span class="n">§3</span>Gleaning：用成本换召回的多轮补抽</h2>
+  <p>单次抽取会漏实体。GraphRAG 的解法是对话式补抽（gleaning）：先追加 <code>CONTINUE_PROMPT</code>（「再补抽，别漏」）拿增量结果，再用 <code>LOOP_PROMPT</code> 问模型「还有吗（Y/N）」决定是否继续，直到答 N 或达 <code>max_gleanings</code>（默认 2）：</p>
+  <pre><code><span class="src">index/operations/extract_graph/graph_extractor.py:99-122</span><span class="kw">if</span> self._max_gleanings &gt; <span class="nm">0</span>:
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(self._max_gleanings):
+        messages_builder.add_user_message(CONTINUE_PROMPT)
+        response = <span class="kw">await</span> self._model.completion_async(...)
+        results += response.content
+        <span class="kw">if</span> i &gt;= self._max_gleanings - <span class="nm">1</span>: <span class="kw">break</span>
+        <span class="cm"># 关键：问模型是否还有遗漏</span>
+        messages_builder.add_user_message(LOOP_PROMPT)
+        response = <span class="kw">await</span> self._model.completion_async(...)
+        <span class="kw">if</span> response.content != <span class="st">"Y"</span>: <span class="kw">break</span>   <span class="cm"># 模型说完了，提前退出</span></code></pre>
+  <p><code>max_gleanings=2</code> 意味着每个 chunk 最多 5 次 LLM 调用（1 初始 + 2 补抽 + 2 判断）。这是「抽取占索引成本 75%」的直接原因——也是调优时第一个该动的旋钮。</p>
+</section>
+
+<section id="leiden">
+  <h2><span class="n">§4</span>Leiden 社区与分层报告</h2>
+  <p>抽取出的实体图交给 Leiden 算法做<b>层级</b>社区检测——这一步是纯图算法，不花 LLM：</p>
+  <pre><code><span class="src">graphs/hierarchical_leiden.py:11-26</span><span class="kw">def</span> <span class="fn">hierarchical_leiden</span>(edges, max_cluster_size=<span class="nm">10</span>, random_seed=<span class="nm">0xDEADBEEF</span>):
+    <span class="kw">return</span> gn.hierarchical_leiden(       <span class="cm"># graspologic_native</span>
+        edges=edges, max_cluster_size=max_cluster_size,
+        seed=random_seed, resolution=<span class="nm">1.0</span>,
+        use_modularity=<span class="kw">True</span>, iterations=<span class="nm">1</span>)
+    <span class="cm"># 返回 (level, cluster_id, parent_id, [nodes]) 层级树</span></code></pre>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a6d3b"/></marker></defs>
+      <!-- L0 -->
+      <text x="20" y="230" font-size="11" fill="#5c574f" font-family="monospace">Level 0（最细）</text>
+      <g>
+        <rect x="150" y="200" width="90" height="40" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="195" y="224" text-anchor="middle" font-size="10.5">社区 0.1 报告</text>
+        <rect x="255" y="200" width="90" height="40" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="300" y="224" text-anchor="middle" font-size="10.5">社区 0.2 报告</text>
+        <rect x="360" y="200" width="90" height="40" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="405" y="224" text-anchor="middle" font-size="10.5">社区 0.3 报告</text>
+        <rect x="465" y="200" width="90" height="40" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="510" y="224" text-anchor="middle" font-size="10.5">社区 0.4 报告</text>
+      </g>
+      <!-- L1 -->
+      <text x="20" y="140" font-size="11" fill="#5c574f" font-family="monospace">Level 1</text>
+      <rect x="200" y="110" width="120" height="44" rx="8" fill="#fbf7ee" stroke="#8a6d3b"/><text x="260" y="130" text-anchor="middle" font-size="11" font-weight="700">社区 1.1 报告</text><text x="260" y="146" text-anchor="middle" font-size="9.5" fill="#5c574f">由 0.1+0.2 报告压缩</text>
+      <rect x="400" y="110" width="120" height="44" rx="8" fill="#fbf7ee" stroke="#8a6d3b"/><text x="460" y="130" text-anchor="middle" font-size="11" font-weight="700">社区 1.2 报告</text><text x="460" y="146" text-anchor="middle" font-size="9.5" fill="#5c574f">由 0.3+0.4 报告压缩</text>
+      <line x1="195" y1="198" x2="245" y2="158" stroke="#8a6d3b" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="300" y1="198" x2="270" y2="158" stroke="#8a6d3b" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="405" y1="198" x2="445" y2="158" stroke="#8a6d3b" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="510" y1="198" x2="475" y2="158" stroke="#8a6d3b" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <!-- L2 -->
+      <text x="20" y="50" font-size="11" fill="#5c574f" font-family="monospace">Level 2（最粗）</text>
+      <rect x="300" y="20" width="120" height="44" rx="8" fill="#fdf7f2" stroke="#b5451f" stroke-width="1.5"/><text x="360" y="40" text-anchor="middle" font-size="11" font-weight="700" fill="#b5451f">根社区报告</text><text x="360" y="56" text-anchor="middle" font-size="9.5" fill="#5c574f">整个语料的主题地图</text>
+      <line x1="260" y1="108" x2="330" y2="68" stroke="#8a6d3b" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <line x1="460" y1="108" x2="390" y2="68" stroke="#8a6d3b" stroke-width="1.3" marker-end="url(#ar6)"/>
+      <text x="620" y="130" font-size="10.5" fill="#5c574f" text-anchor="middle">上下文超预算时</text>
+      <text x="620" y="146" font-size="10.5" fill="#5c574f" text-anchor="middle">用子报告替换原始数据</text>
+      <text x="620" y="162" font-size="10.5" fill="#8a6d3b" text-anchor="middle" font-weight="700">= 分层递归压缩</text>
+    </svg>
+    <figcaption>社区报告金字塔：每层每个社区一份 LLM 生成的 JSON 报告，自底向上压缩。层级由 Community 数据模型的 level/parent/children 字段承载（data_model/community.py:13-79）。</figcaption>
+  </figure>
+  <p>社区报告是结构化 JSON（prompt 在 <code>prompts/index/community_report.py:5-153</code>）：<code>title / summary / rating(0-10) / findings[]</code>，并强制<b>数据引用格式</b> <code>[Data: Entities (ids); Relationships (ids)]</code>（单个引用最多 5 条 id，超出用 <code>+more</code>）+「不含引用的信息不写」的 grounding 规则——这套可溯源约定值得任何做摘要系统的人抄。</p>
+</section>
+
+<section id="query">
+  <h2><span class="n">§5</span>查询侧：4 种模式，各取所长</h2>
+  <table>
+    <tr><th>模式</th><th>上下文来源</th><th>LLM 调用</th><th>延迟</th><th>擅长</th></tr>
+    <tr><td><b>Local</b><br><span class="anchor-note">local_search/search.py:31-171</span></td><td>查询→实体向量匹配→邻接社区+关系+text_units</td><td>1–2 次</td><td class="good">低</td><td class="vs">具体事实（"Alice 的背景是什么"）</td></tr>
+    <tr><td><b>Global</b><br><span class="anchor-note">global_search/search.py:55-380</span></td><td>全部社区报告的 Map-Reduce</td><td class="bad">~报告数</td><td class="bad">高</td><td class="vs"><b>宏观主题综述</b>（QFS 主场）</td></tr>
+    <tr><td><b>DRIFT</b><br><span class="anchor-note">drift_search/search.py:37-257</span></td><td>Primer 查询扩展 + 多轮 local 跟进（n_depth × drift_k_followups）</td><td>3–5 次</td><td class="mid">中</td><td class="vs">链式推理</td></tr>
+    <tr><td><b>Basic</b><br><span class="anchor-note">basic_search/search.py:32-145</span></td><td>text_units 纯向量检索</td><td>1–2 次</td><td class="good">低</td><td class="vs">对照基线</td></tr>
+  </table>
+
+  <h3>Global Search 的 Map-Reduce</h3>
+  <p>这是 GraphRAG 查询侧最有辨识度的机制。Map 阶段对社区报告<b>分批并行</b>打分抽取要点（JSON 强制输出，score 0–100，「不知道」得 0 分），Reduce 阶段按分排序、截断到 <code>max_data_tokens=8000</code> 后合成最终答案：</p>
+  <pre><code><span class="src">query/structured_search/global_search/search.py:151-180（Map）+ 373-379（Reduce）</span><span class="cm"># Map：并行让 LLM 评估各社区报告与问题的相关性</span>
+map_responses = <span class="kw">await</span> asyncio.gather(*[
+    self._run_search(
+        prompt=self.map_system_prompt.format(context_data=chunk, ...),
+        query=query)
+    <span class="kw">for</span> chunk <span class="kw">in</span> context_chunks])   <span class="cm"># concurrent_coroutines=32</span>
+
+<span class="cm"># 每个 map 结果形如 {"points": [{"description": "... [Data: Reports (2,7)]", "score": 85}]}</span>
+
+<span class="cm"># Reduce：按得分降序、token 截断后合成 markdown 答案</span>
+sorted_by_score = <span class="fn">sorted</span>(map_responses, key=<span class="kw">lambda</span> x: x.get(<span class="st">"score"</span>, <span class="nm">0</span>), reverse=<span class="kw">True</span>)</code></pre>
+  <p class="sub">Map/Reduce 的 system prompt 分别在 <code>prompts/query/global_search_map_system_prompt.py:6-85</code> 和 <code>…reduce_system_prompt.py:6-81</code>。Reduce prompt 有个细节：要求保留情态动词（shall/may/will）并抹去「analyst」角色痕迹。</p>
+</section>
+
+<section id="cost">
+  <h2><span class="n">§6</span>成本画像与优化旋钮</h2>
+  <h3>公开实测数字</h3>
+  <ul>
+    <li>官方 GitHub Discussion #440：索引约 120 万 token 语料 ≈ <b>$8.2</b>（GPT-4o）；单次 Global Search ≈ $0.4。</li>
+    <li>学术实测：HotpotQA 全量语料索引消耗 <b>7.57 亿 token，Naive RAG 只需 6200 万</b>（约 12 倍）；GPT-4o 索引 HotpotQA 花费 $389。</li>
+    <li>更新代价：新增文档改变社区划分需重建报告——LightRAG 论文估算 1399 个社区的重建 ≈ 1399 × 2 × 5000 token。</li>
+  </ul>
+  <h3>成本构成与旋钮</h3>
+  <table>
+    <tr><th>环节</th><th>占比</th><th>优化旋钮</th><th>代价</th></tr>
+    <tr><td>图抽取 + gleaning</td><td class="bad">~75%</td><td><code>max_gleanings</code> 2→1→0（−50%）；gleaning 换便宜模型</td><td class="vs">召回率降</td></tr>
+    <tr><td>描述摘要</td><td>10–15%</td><td>提高触发阈值</td><td class="vs">实体描述冗长</td></tr>
+    <tr><td>社区报告</td><td>5–10%</td><td>提高 <code>max_cluster_size</code>；只在顶层社区做报告（−70%）</td><td class="vs">局部精度降 / 单层报告过长</td></tr>
+    <tr><td>重跑</td><td>—</td><td class="good"><code>cache.type=json</code> 使重跑接近零成本</td><td class="vs">—</td></tr>
+  </table>
+  <p class="sub">已知坑（仓库文档明确记录）：增量更新的「删除检测未应用」——删除文档后图中残留其实体。</p>
+</section>
+
+<section id="lazy">
+  <h2><span class="n">§7</span>LazyGraphRAG：微软对自己的纠偏</h2>
+  <p>2024.11，微软研究院发布 LazyGraphRAG，思路是<b>把 LLM 的使用推迟到查询时</b>：</p>
+  <ul>
+    <li>索引期<b>零 LLM 调用</b>，也不做预摘要：用 NLP 名词短语抽取建概念共现图，图统计量做社区划分——索引成本仅为 GraphRAG 的 <b>0.1%</b>，与向量 RAG 相当；</li>
+    <li>查询期「先广度后深度」迭代加深：向量 + 图社区结构定位相关片段，小预算 LLM 做相关性判断与声明抽取；</li>
+    <li>官方数据：答案质量与 Global Search 相当，查询成本低 <b>700 倍</b>以上。</li>
+  </ul>
+  <div class="box key">
+    <div class="t"><span class="ic">结论</span>这告诉我们什么</div>
+    <p>社区把 LazyGraphRAG 解读为微软对重索引路线的自我否定：<b>图结构有价值，但用 LLM 预生成全部摘要不划算</b>。这与下一章 LightRAG 的动机（砍掉社区摘要）殊途同归——两家从不同方向收敛到同一个判断。「索引期做多少、查询期做多少」是贯穿第 4–6 章的核心权衡轴：GraphRAG 全押索引期，PageIndex 全押查询期，LightRAG 和 LazyGraphRAG 在中间。</p>
+  </div>
+</section>
+
+<section id="files">
+  <h2><span class="n">§8</span>仓库导航（多包 monorepo）</h2>
+  <div class="filemap">
+    <div class="f"><span class="p">packages/graphrag/graphrag/index/workflows/</span><span class="d">8 个索引 workflow，每个 .py 一个工作流；factory.py 编排</span></div>
+    <div class="f"><span class="p">…/index/operations/extract_graph/</span><span class="d">抽取 + gleaning + pandas 聚合（本章 §2–3）</span></div>
+    <div class="f"><span class="p">…/graphs/hierarchical_leiden.py</span><span class="d">Leiden 封装（§4）</span></div>
+    <div class="f"><span class="p">…/query/structured_search/</span><span class="d">local / global / drift / basic 四种搜索实现（§5）</span></div>
+    <div class="f"><span class="p">…/prompts/index/ 与 prompts/query/</span><span class="d">全部 prompt 定义，抽取/社区报告/map/reduce 都在这里</span></div>
+    <div class="f"><span class="p">…/data_model/</span><span class="d">Entity / Relationship / TextUnit / Community / CommunityReport schema（schemas.py:70-159）</span></div>
+    <div class="f"><span class="p">packages/graphrag-{llm,storage,vectors,cache,chunking}/</span><span class="d">LLM 抽象 / 存储（file/blob/cosmos）/ 向量库（lancedb/azure）/ 缓存 / 分块，各自独立包</span></div>
+  </div>
+  <p>使用方式：<code>graphrag init --root .</code> 生成 settings.yaml（关键配置段：<code>chunking.size=1200</code>、<code>extract_graph.max_gleanings=2</code>、<code>cluster_graph.max_cluster_size=10</code>、<code>community_reports.max_length=2000</code>）→ <code>graphrag index</code> → <code>graphrag query --method global "问题"</code>。另有 <code>graphrag prompt-tune</code> 用语料样本自动适配抽取 prompt。</p>
+  <div class="box tip">
+    <div class="t"><span class="ic">读码</span>建议阅读顺序</div>
+    <p>① workflows/factory.py 看全局编排 → ② graph_extractor.py 的 gleaning 循环 → ③ hierarchical_leiden.py + create_communities → ④ global_search/search.py 的 Map-Reduce → ⑤ prompts/ 目录通读（prompt 是这个系统一半的「代码」）。</p>
+  </div>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§9</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">GraphRAG 论文</span> — Edge et al., "From Local to Global: A Graph RAG Approach to Query-Focused Summarization". <a href="https://arxiv.org/abs/2404.16130">arxiv.org/abs/2404.16130</a>；<a href="https://www.microsoft.com/en-us/research/publication/from-local-to-global-a-graph-rag-approach-to-query-focused-summarization/">微软官方页</a></li>
+    <li><span class="rt">代码与行号</span> — 本地检出 <code>../graphrag</code>（microsoft/graphrag，2026-07）；上游：<a href="https://github.com/microsoft/graphrag">github.com/microsoft/graphrag</a></li>
+    <li><span class="rt">索引成本实测（$8.2 / 120 万 token、$0.4/次查询）</span> — <a href="https://github.com/microsoft/graphrag/discussions/440">GitHub Discussion #440</a>；官方成本解释：<a href="https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/graphrag-costs-explained-what-you-need-to-know/4207978">Microsoft Tech Community</a></li>
+    <li><span class="rt">学术成本测量（7.57 亿 vs 6200 万 token、$389/HotpotQA）</span> — <a href="https://arxiv.org/abs/2503.02922">arxiv.org/abs/2503.02922</a> 等实测论文；VersionRAG 对照（297 万 vs 18.6 万 token）：<a href="https://arxiv.org/abs/2510.08109">arxiv.org/abs/2510.08109</a></li>
+    <li><span class="rt">LazyGraphRAG（索引 0.1% 成本 / 查询低 700×）</span> — <a href="https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/">Microsoft Research Blog</a></li>
+    <li><span class="rt">独立复测 F1（MuSiQue 38.5 等）</span> — HippoRAG 2 论文表 2. <a href="https://arxiv.org/abs/2502.14802">arxiv.org/abs/2502.14802</a></li>
+    <li><span class="rt">社区报告重建成本估算（1399 社区）</span> — LightRAG 论文. <a href="https://arxiv.org/abs/2410.05779">arxiv.org/abs/2410.05779</a></li>
+    <li><span class="rt">Leiden 算法实现</span> — <a href="https://github.com/graspologic-org/graspologic">graspologic</a>（graspologic_native.hierarchical_leiden）</li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="03-parsing.html"><span class="lbl">← 上一页</span><div class="ti">文档解析与 OCR</div></a>
+  <a href="05-lightrag.html" class="next"><span class="lbl">下一页 →</span><div class="ti">LightRAG 精读</div></a>
+</div>
+<footer>knowledge-base-learning · 代码行号基于本地 ../graphrag 检出（2026-07） · 版本更新后行号可能漂移</footer>
+</main>
+</div>
+</body>
+</html>

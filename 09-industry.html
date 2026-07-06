@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>09 · 工业界产品拆解 —— Manus、Kimi 与豆包的检索路线 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#why">为什么看产品</a></li>
+    <li><a href="#manus">Manus：上下文工程</a></li>
+    <li><a href="#kimi">Kimi：长上下文 + Agentic RL</a></li>
+    <li><a href="#doubao">豆包：法条场景解剖</a></li>
+    <li><a href="#legal">法律垂直 RAG 对照</a></li>
+    <li><a href="#compare">三条路线对照</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html" class="cur">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 09 · Industry Case Studies</div>
+  <h1>工业界产品拆解：Manus、Kimi 与豆包的三条检索路线</h1>
+  <p class="lead">论文的数字可以互相矛盾（第 5 章见识过了），但产品的取舍被真实流量验证过。本章拆三个成熟产品：Manus 押注上下文工程、Kimi 押注长上下文 + 端到端 RL 的自主搜索、豆包押注搜索栈 + 托管知识库——并解剖用户直觉「豆包法条做得不错」背后的机制。</p>
+  <div class="pills">
+    <span class="pill">Manus <b>KV-cache 优先</b></span>
+    <span class="pill">Kimi <b>agentic RL 搜索</b></span>
+    <span class="pill">豆包 <b>搜索栈 + VikingDB</b></span>
+    <span class="pill">对照 <b>法律垂直 RAG</b></span>
+  </div>
+</header>
+
+<section id="why">
+  <h2><span class="n">§1</span>为什么看产品而不是只看论文</h2>
+  <p>三个理由：① 图 RAG 领域的论文评测已被证明高度不可靠（同一方法跨论文 F1 差 40 倍，第 5 章 §7）；② 产品的架构取舍要同时满足延迟、成本、规模、合规——这些约束论文里没有；③ 三家恰好代表了第 1 章五族之外的三种「组合策略」，且都有可溯源的公开材料。需要先声明口径：<b>本章事实均标注来源；产品未公开的部分明确标为推断</b>，尤其是豆包——它几乎没有官方技术披露，解剖主要靠火山引擎公开文档 + 合理推断。</p>
+</section>
+
+<section id="manus">
+  <h2><span class="n">§2</span>Manus：把检索问题变成上下文工程问题</h2>
+  <p>一手来源是 Manus 联合创始人 Peak Ji 的官方博客《Context Engineering for AI Agents》——可能是 2025 年被引用最多的 agent 工程文章。背景：Manus 决定不自训模型、全部押注上下文工程，agent 框架重写了四次。六条经验，每条都与「检索/记忆」直接相关：</p>
+  <table>
+    <tr><th>原则</th><th>机制</th><th>关键数字/细节</th></tr>
+    <tr><td><b>① KV-cache 命中率是第一指标</b></td><td>agent 是追加式循环，输入:输出 ≈ 100:1，前缀稳定才能命中缓存</td><td class="vs">Claude 缓存输入 $0.30/MTok vs 未缓存 $3.00——10 倍差价。系统提示里放一个精确到秒的时间戳就毁掉全部缓存</td></tr>
+    <tr><td><b>② Mask 而非移除工具</b></td><td>动态增删工具会毁缓存 + 让历史步骤引用失效；改为解码期用 response prefill 约束可选工具</td><td class="vs">统一命名前缀（browser_ / shell_）实现按类批量约束。他们实验过 RAG 式动态加载工具定义，因破坏缓存而放弃</td></tr>
+    <tr><td><b>③ 文件系统 = 终极上下文</b></td><td>把文件系统当无限大、持久、可操作的外置记忆；压缩必须<b>可恢复</b>——丢网页正文但留 URL、丢文档内容但留路径</td><td class="vs">128K 窗口在真实任务中不够：一条网页观测就可能爆掉</td></tr>
+    <tr><td><b>④ Recitation 复述</b></td><td>持续重写 todo.md 并逐项勾选，把全局计划反复推到上下文<b>末尾</b>（近期注意力区）</td><td class="vs">典型任务约 50 次工具调用，复述治目标漂移与 lost-in-the-middle</td></tr>
+    <tr><td><b>⑤ 保留错误</b></td><td>失败动作和堆栈留在上下文里，模型隐式更新先验</td><td class="vs">「错误恢复是真正 agent 行为的最清晰指标」——而学术基准只测理想条件</td></tr>
+    <tr><td><b>⑥ 反 few-shot 套牢</b></td><td>重复的 action-observation 对诱导机械模仿，需受控注入结构化变异</td><td class="vs">案例：批量审 20 份简历时陷入重复漂移</td></tr>
+  </table>
+  <h3>它怎么做「检索」</h3>
+  <p>公开叙事中 Manus <b>没有向量 RAG 组件</b>（推断：无逐字官方否认，但所有公开材料一致指向文件系统路线）。其动作空间分三层：第一层 ≤20 个稳定原子工具（bash、文件读写、搜索、浏览器）；第二层通过 bash 调沙箱内 CLI——<b>检索靠 grep 而非专用检索工具</b>；第三层是代码。超出单上下文的规模问题交给 <b>Wide Research</b>（2025.07）：主 agent 分解任务 → 100+ 个<b>完整 Manus 实例</b>并行（各有独立 VM 与上下文，子 agent 间不通信以防上下文污染）→ 主 agent 汇总。</p>
+  <div class="box key">
+    <div class="t"><span class="ic">启示</span>与传统 RAG 的关系</div>
+    <p>Manus 把召回从「离线索引问题」改写为「在线决策问题」：检索单位从 chunk 变成<b>文件 + 路径 + 工具</b>，URL/路径是指针、内容随取随弃。它优化的不是「塞进多少相关内容」而是 KV-cache 命中率。前提是「前沿模型 + 沙箱执行环境」——对无沙箱的纯问答知识库，向量 RAG 仍更经济（推断）。todo.md 复述、保留错误、mask-not-remove、可恢复压缩四个技法可直接迁移到任何 RAG/agent 系统。</p>
+  </div>
+  <p class="sub">时效备注：Meta 于 2025.12 宣布收购 Manus（WSJ 称超 20 亿美元），2026.04 中国发改委要求撤销交易、Meta 正在 unwind——引用商业信息请注明时间点。</p>
+</section>
+
+<section id="kimi">
+  <h2><span class="n">§3</span>Kimi：长上下文原教旨 + 端到端 RL 的自主搜索</h2>
+  <h3>「蜜蜂模型」：对 RAG 最锋利的批评</h3>
+  <p>2023.10 Kimi Chat 以 20 万字上下文发布时，杨植麟把业界长文本「捷径」分为三类并逐一否定：<b>金鱼</b>（滑动窗口，健忘）、<b>蜜蜂</b>（降采样 / RAG 检索增强——只见局部不见整体）、<b>蝌蚪</b>（缩参数换长度）。<b>RAG 被明确归入「蜜蜂」类有损捷径</b>。2024 年初的专访里他的立场浓缩为一句「lossless long context is everything」。</p>
+  <div class="box warn">
+    <div class="t"><span class="ic">溯源</span>那句网传名言的核查结果</div>
+    <p>流传甚广的「RAG 是妥协、long context 才是终局」<b>没有逐字出处</b>——专访全文里找不到这句话。它是社区对两处真实表态的概括：① 2023.10 把 RAG 归入「蜜蜂」式有损捷径；② 2024 专访的「lossless long context is everything」与「如果你有 10 亿 context length，今天看到的问题都不是问题」。引用时请用真实表述 + 上述两个出处。同样注意：「200 万字无损」是产品宣传口径，具体网络结构未公开。</p>
+  </div>
+  <p>公开的技术支柱有两个：<b>MoBA</b>（arXiv:2502.13189，把 MoE 思想引入注意力——上下文切块、可训练 gating 让每个 query 自选关注块，论文确认已部署支撑 Kimi 长上下文）；<b>Mooncake</b>（arXiv:2407.00079，FAST'25）——以 KV-cache 为中心的 prefill/decode 分离推理架构，用集群闲置 CPU/DRAM/SSD 建全局缓存池「以存换算」，同等硬件多承接约 110% 请求。<b>长上下文路线能走通，一半靠注意力结构，一半靠让它算得起的基建</b>——这与 Manus 把 KV-cache 当第一指标殊途同归。</p>
+  <h3>检索没有消失，而是被 RL 内化</h3>
+  <p>有趣的是：嘴上说 RAG 是蜜蜂，Kimi 的产品线却把「检索」越做越重——只是形态完全不同：</p>
+  <div class="flow">
+    <div class="step"><div class="dot">1</div><div class="body"><b>基础联网搜索</b><div class="d">检索到的<b>整页</b>网页塞进长上下文精读（而非取片段）——长上下文与检索互补的最直接产品化。</div></div></div>
+    <div class="step"><div class="dot">2</div><div class="body"><b>探索版（2024.10）：agentic search</b><div class="d">自主规划搜索策略、搜索量 10 倍、一次精读 500+ 页面、对结果反思后多轮补搜。</div></div></div>
+    <div class="step alt"><div class="dot">3</div><div class="body"><b>Kimi-Researcher（2025.06）：端到端 agentic RL</b><div class="d">不是工作流编排——整个「搜索→浏览→写代码→合成」行为链用 REINFORCE 端到端训练：严格 on-policy、负例部分丢弃防熵坍缩、γ 衰减奖励激励短路径。单任务平均 23 个推理步、探索 200+ URL、仅 3.2% 内容进最终报告。HLE Pass@1 从 8.6% → <b>26.9%</b>，官方称提升「几乎完全来自端到端 RL」。</div></div></div>
+    <div class="step alt"><div class="dot">4</div><div class="body"><b>K2 Thinking（开源）</b><div class="d">边思考边调工具（interleaved thinking + function calls），可连续 200–300 次工具调用不漂移；BrowseComp 60.2% vs 人类基线 29.2%。Researcher 的 RL 经验沉淀进了开源基座（推断）。</div></div></div>
+  </div>
+  <div class="box key">
+    <div class="t"><span class="ic">启示</span>Kimi 路线的边界</div>
+    <p>检索从「pipeline 的固定预处理」变成「RL 习得的自主行为」：长上下文管<b>读得全</b>，agentic search 管<b>找得到</b>。传统 RAG 的不可替代性收缩到三类场景：私有/权限敏感语料（公网搜索够不到）、规模远超窗口且全量入 context 不经济、高频重复查询的成本控制——正好呼应第 7 章 §5 的「高价值低频 vs 低价值高频」分界。</p>
+  </div>
+</section>
+
+<section id="doubao">
+  <h2><span class="n">§4</span>豆包：法条场景解剖</h2>
+  <p>用户直觉「豆包对法条做得不错」是个好的解剖入口。先说结论：<b>没有任何官方证据表明豆包内置了结构化法条索引</b>。可查证的机制是三层：</p>
+  <div class="three">
+    <div class="mini"><div class="h">① 参数化记忆（推断）</div><p>法条是高频、稳定、结构规整的文本，中文预训练语料覆盖充分——模型「背得住」。旁证：公开的失败案例集中在<b>事实性/程序性细节编造</b>（如退票手续费规则答错致损引诉讼），而非法条编号错引。</p></div>
+    <div class="mini"><div class="h">② 字节搜索栈联网检索（事实+推断）</div><p>豆包联网检索标注引用来源；法条查询可命中国家法律法规数据库、北大法宝等权威站点直接返回原文。法条是抖音/头条搜索长期优化的高频类目，权威站点加权是搜索栈的存量能力（推断）。</p></div>
+    <div class="mini"><div class="h">③ 深度思考核验（事实）</div><p>官方披露新版深度思考「边想边搜」：推理中多次调用搜索、自我质疑、假设验证与错误修正——对法条编号、修订版本做二次核验。</p></div>
+  </div>
+  <p>法律行业侧唯一可查的官方案例是<b>火山引擎 × 威科（Wolters Kluwer）</b>：豆包大模型对判例做批量字段抽取（法条、金额、地点等上百字段，官方称精度 95%+）服务威科先行法律库——说明字节在法律 NLP 结构化上有工程积累，但这是 B 端信息库建设，不等于 C 端法条问答的实现。</p>
+  <h3>字节可复用的公开技术栈</h3>
+  <table>
+    <tr><th>组件</th><th>技术要点</th><th>与本教程的对应</th></tr>
+    <tr><td><b>VikingDB</b>（自研向量库）</td><td>十亿级向量 10ms 内检索、存算分离、HNSW-Hybrid <b>稠密+稀疏混合索引</b>、Int8 量化、标量前/中/后置过滤自适应执行计划；内部 50+ 业务线</td><td class="vs">第 2 章 §4–5 的 hybrid 检索在超大规模下的工程形态</td></tr>
+    <tr><td><b>知识库流水线</b>（火山引擎）</td><td>doc_chunking 切片 → Doubao-embedding（4K 上下文/2560 维）→ 混合检索（dense_weight 调权）→ rerank（按「chunk 能回答 query 的概率」重打分）→ 豆包生成</td><td class="vs">与第 2 章 §9 生产清单逐环对应——大厂托管版的同一套管道</td></tr>
+    <tr><td><b>Coze Studio</b>（开源，源码可查）</td><td><b>层级分块语义树</b>：检索切片携带父级/祖级标题保留层级上下文；RRF 融合多路检索；NL2SQL</td><td class="vs">字节公开代码中最接近「结构化知识库」的实现——第 6 章树思想的工程简化版</td></tr>
+    <tr><td><b>Seed1.5-Embedding / DeerFlow</b></td><td>MTEB 中英 SOTA、BRIGHT（推理密集检索）SOTA；DeerFlow 是开源 deep research 框架（LangGraph 多智能体）</td><td class="vs">embedding 选型（第 2 章 §3）与 agentic 检索（第 7 章 §5）</td></tr>
+  </table>
+  <p class="sub">推断标注：Coze 的层级语义树与豆包 C 端是否同源无公开证据；「豆包引用国家法律法规数据库」缺直接证据，为合理推断。</p>
+</section>
+
+<section id="legal">
+  <h2><span class="n">§5</span>对照：法律垂直 RAG 为什么必须结构化</h2>
+  <p>豆包靠「记忆 + 搜索」覆盖大众法条问答；但专业法律产品全部走了另一条路——<b>结构化法条库 + 可验证检索</b>。原因在法条这种语料的三个特点，恰好都是纯向量检索的盲区：</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <rect x="15" y="15" width="330" height="210" rx="10" fill="#fff" stroke="#e7e1d6"/>
+      <text x="180" y="40" text-anchor="middle" font-size="12.5" font-weight="800" fill="#1c1a17">法条的原生结构</text>
+      <text x="180" y="66" text-anchor="middle" font-size="11.5" fill="#5c574f">编 → 章 → 节 → 条 → 款 → 项 → 目</text>
+      <rect x="45" y="82" width="270" height="34" rx="7" fill="#fbf7ee" stroke="#8a6d3b"/>
+      <text x="180" y="103" text-anchor="middle" font-size="11">「条 / 款」= 天然完整语义单元 = 切分边界</text>
+      <rect x="45" y="124" width="270" height="34" rx="7" fill="#fbf7ee" stroke="#8a6d3b"/>
+      <text x="180" y="145" text-anchor="middle" font-size="11">修订版本 + 生效/失效时间 = 时序维度</text>
+      <rect x="45" y="166" width="270" height="34" rx="7" fill="#fbf7ee" stroke="#8a6d3b"/>
+      <text x="180" y="187" text-anchor="middle" font-size="11">效力层级（宪法&gt;法律&gt;行政法规）+ 地域 = 标量过滤</text>
+      <rect x="375" y="15" width="330" height="210" rx="10" fill="#fdf7f2" stroke="#b5451f" stroke-width="1.5"/>
+      <text x="540" y="40" text-anchor="middle" font-size="12.5" font-weight="800" fill="#b5451f">纯向量检索为什么在这里弱</text>
+      <text x="540" y="72" text-anchor="middle" font-size="11" fill="#1c1a17">「民法典第 1079 条」是精确匹配需求</text>
+      <text x="540" y="90" text-anchor="middle" font-size="10.5" fill="#5c574f">—— 语义相似度对条号毫无优势（第 2 章 BM25 主场）</text>
+      <text x="540" y="122" text-anchor="middle" font-size="11" fill="#1c1a17">版本 / 生效时间是过滤需求，不是相似度需求</text>
+      <text x="540" y="140" text-anchor="middle" font-size="10.5" fill="#5c574f">—— 检回已废止的旧条文是法律场景的致命错误</text>
+      <text x="540" y="172" text-anchor="middle" font-size="11" fill="#1c1a17">层级路径本身就是引用凭证</text>
+      <text x="540" y="190" text-anchor="middle" font-size="10.5" fill="#5c574f">—— 「某法第 X 条第 Y 款」必须可溯源（第 6 章树思想）</text>
+    </svg>
+    <figcaption>法条 = 结构显式的语料。回到第 8 章的规律：「结构显式就别让 LLM 猜」——按条/款边界切分、时序图谱管版本、标量过滤管效力层级，这些都是确定性工程而非概率检索。</figcaption>
+  </figure>
+  <p>三个走结构化路线的对照产品：<b>通义法睿</b>（阿里：千问基座 + 法律精调 + RAG + 司法专属小模型）；<b>ChatLaw</b>（北大：Keyword LLM 从模糊提问抽关键词 + 专用 Law Embedding，93 万判例语料）；<b>DISC-LawLLM</b>（复旦，DASFAA 2024：法律三段论 prompting 构造 SFT 数据 + <b>可验证检索</b>模块，LawBench 仅次于 GPT-4）。</p>
+  <div class="box tip">
+    <div class="t"><span class="ic">合流</span>这一节与全书的连接</div>
+    <p>法条库是「树族方案」的完美应用场景：编-章-节-条是现成的 PageIndex 式目录树（第 6 章），修订时间线对应 Graphiti 式时序失效机制（第 7 章 §6），效力层级/地域是向量库的标量过滤（第 2 章 §4）。如果你要做法律知识库，这三章的组合就是蓝图——豆包的「记忆 + 搜索」路线只适合大众咨询，专业场景必须结构化。</p>
+  </div>
+</section>
+
+<section id="compare">
+  <h2><span class="n">§6</span>三条路线对照</h2>
+  <table>
+    <tr><th></th><th>Manus</th><th>Kimi</th><th>豆包 / 火山引擎</th></tr>
+    <tr><td><b>知识进上下文的方式</b></td><td>文件系统外置记忆 + grep/CLI 按需读取</td><td>长上下文整页精读 + agentic search 多轮补搜</td><td>搜索栈联网 + VikingDB 托管知识库混合检索</td></tr>
+    <tr><td><b>「检索」由谁决策</b></td><td>模型（工具循环）</td><td>模型（端到端 RL 习得）</td><td>管道（经典 RAG 流水线）+ 深度思考补搜</td></tr>
+    <tr><td><b>核心优化目标</b></td><td>KV-cache 命中率</td><td>无损长上下文 + 搜得准（HLE/BrowseComp）</td><td>大规模低延迟（十亿向量 10ms）+ 引用可溯源</td></tr>
+    <tr><td><b>成本底座</b></td><td>缓存价 token（10× 差价）</td><td>Mooncake KV-cache 池「以存换算」</td><td>Int8 量化 + 存算分离</td></tr>
+    <tr><td><b>对应本书章节</b></td><td class="vs">第 7 章 agentic + 第 1 章「检索是工具」</td><td class="vs">第 1 章「RAG 已死」之争的正主</td><td class="vs">第 2 章管道的大厂托管形态</td></tr>
+  </table>
+  <div class="box key">
+    <div class="t"><span class="ic">收束</span>三家共同证明的一件事</div>
+    <p>没有一家在做 2023 年教科书式的「chunk + embedding + top-k」——但也没有一家真正抛弃检索。Manus 把它变成文件系统工具，Kimi 把它变成 RL 行为，豆包把它藏进搜索栈和托管管道。<b>检索作为能力永生，RAG 作为固定架构已经溶解</b>——这就是第 1 章「From RAG to Context」判断在产品端的三重验证。而 KV-cache 在 Manus（第一指标）和 Kimi（Mooncake）两家同时成为成本核心，提示上下文工程时代的新公共底座。</p>
+  </div>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§7</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">Manus 上下文工程（一手）</span> — Peak Ji, "Context Engineering for AI Agents: Lessons from Building Manus". <a href="https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus">manus.im/blog</a>（镜像：<a href="https://medium.com/@peakji/context-engineering-for-ai-agents-lessons-from-building-manus-71883f0a67f2">Medium</a>）</li>
+    <li><span class="rt">Manus 分层动作空间 / 无向量检索叙事</span> — <a href="https://rlancemartin.github.io/2025/10/15/manus/">Lance Martin 记录</a>；<a href="https://www.philschmid.de/context-engineering-part-2">philschmid: Context Engineering Part 2</a>；不用 MCP：<a href="https://x.com/peakji/status/1899005201778086166">Peak Ji on X</a></li>
+    <li><span class="rt">Wide Research</span> — <a href="https://manus.im/blog/introducing-wide-research">manus.im/blog/introducing-wide-research</a>；Meta 收购与监管：<a href="https://www.cnbc.com/2025/12/30/meta-acquires-singapore-ai-agent-firm-manus-china-butterfly-effect-monicai.html">CNBC 2025-12</a>、<a href="https://en.wikipedia.org/wiki/Manus_(AI_agent)">Wikipedia 时间线</a></li>
+    <li><span class="rt">Kimi 金鱼/蜜蜂/蝌蚪论（RAG 归类原始出处）</span> — <a href="https://news.qq.com/rain/a/20231012A079M500">腾讯新闻 2023-10</a>；<span class="rt">「lossless long context is everything」专访</span> — <a href="https://news.qq.com/rain/a/20240208A05KFR00">腾讯新闻·张小珺专访 2024-02</a></li>
+    <li><span class="rt">200 万字发布</span> — <a href="https://www.nbd.com.cn/articles/2024-03-18/3285223.html">每日经济新闻 2024-03</a>；<span class="rt">MoBA</span> — <a href="https://arxiv.org/abs/2502.13189">arxiv.org/abs/2502.13189</a>、<a href="https://github.com/MoonshotAI/MoBA">github.com/MoonshotAI/MoBA</a></li>
+    <li><span class="rt">Kimi-Researcher（端到端 agentic RL，一手）</span> — <a href="https://moonshotai.github.io/Kimi-Researcher/">moonshotai.github.io/Kimi-Researcher</a>；<span class="rt">K2 Thinking</span> — <a href="https://moonshotai.github.io/Kimi-K2/thinking.html">官方博客</a>、<a href="https://huggingface.co/moonshotai/Kimi-K2-Thinking">HuggingFace</a></li>
+    <li><span class="rt">Mooncake</span> — <a href="https://arxiv.org/abs/2407.00079">arxiv.org/abs/2407.00079</a>（FAST'25）、<a href="https://github.com/kvcache-ai/Mooncake">github.com/kvcache-ai/Mooncake</a></li>
+    <li><span class="rt">豆包深度思考「边想边搜」</span> — <a href="https://www.oschina.net/news/341477">OSCHINA</a>；引用来源标注：<a href="https://www.ithome.com/0/939/087.htm">IT之家</a></li>
+    <li><span class="rt">火山引擎 × 威科法律案例（抽取精度 95%+）</span> — <a href="https://www.53ai.com/news/zhishiguanli/2024071051427.html">火山引擎案例（53AI 转载）</a></li>
+    <li><span class="rt">VikingDB 架构</span> — <a href="https://zhuanlan.zhihu.com/p/694845513">大规模云原生向量数据库实践</a>；<span class="rt">知识库流水线官方文档</span> — <a href="https://www.volcengine.com/docs/84313/1254457">知识问答流程</a>、<a href="https://www.volcengine.com/docs/84313/1254474">rerank</a>、<a href="https://www.volcengine.com/docs/84313/1269162">混合检索 search_collection</a></li>
+    <li><span class="rt">Doubao-embedding</span> — <a href="https://www.volcengine.com/docs/82379/1554710">火山方舟文档</a>；<span class="rt">Seed1.5-Embedding</span> — <a href="https://seed.bytedance.com/en/blog/bytedance-s-seed1-5-embedding-model-achieves-sota-in-retrieval-training-details-unveiled">Seed 官方博客</a></li>
+    <li><span class="rt">Coze Studio 层级语义树（开源源码分析）</span> — <a href="https://blog.csdn.net/AT_GCS/article/details/149905112">CSDN 源码分析</a></li>
+    <li><span class="rt">法律 RAG 切分与时序设计</span> — <a href="https://blog.csdn.net/weixin_49199313/article/details/150269511">司法检索 RAG 设计方案</a>；法条层级：<a href="https://zhuanlan.zhihu.com/p/542495152">条款项目区分</a></li>
+    <li><span class="rt">通义法睿</span> — <a href="https://help.aliyun.com/zh/model-studio/tongyi-farui/">阿里云官方文档</a>；<span class="rt">ChatLaw</span> — <a href="https://zhuanlan.zhihu.com/p/643673344">论文简读</a>；<span class="rt">DISC-LawLLM</span> — <a href="https://github.com/FudanDISC/DISC-LawLLM">github.com/FudanDISC/DISC-LawLLM</a></li>
+    <li><span class="rt">豆包失败案例（事实编造型）</span> — <a href="https://zhuanlan.zhihu.com/p/2038627004103307455">退票手续费错答案例</a>；横评（自媒体，严谨性有限）：<a href="https://blog.csdn.net/Androiddddd/article/details/155228816">四大模型法律问答对比</a></li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="08-practice.html"><span class="lbl">← 上一页</span><div class="ti">本地实战与选型</div></a>
+  <a href="10-recent.html" class="next"><span class="lbl">下一页 →</span><div class="ti">2025–2026 编年</div></a>
+</div>
+<footer>knowledge-base-learning · 产品信息截至 2026-07，商业动态（如 Manus 收购案）变动较快，引用注意时间点</footer>
+</main>
+</div>
+</body>
+</html>

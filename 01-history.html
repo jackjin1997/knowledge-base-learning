@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>01 · RAG 演进史 —— 从端到端模型到 Agent 的工具 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#def">「RAG」三次定义漂移</a></li>
+    <li><a href="#timeline">完整时间线</a></li>
+    <li><a href="#era1">史前时代 2017–2021</a></li>
+    <li><a href="#era2">工程化爆发 2022–2023</a></li>
+    <li><a href="#era3">结构化与前沿 2024–2026</a></li>
+    <li><a href="#dead">「RAG 已死」之争</a></li>
+    <li><a href="#map">范式全景图</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html" class="cur">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 01 · History</div>
+  <h1>RAG 演进史：从端到端模型到 Agent 的工具</h1>
+  <p class="lead">「RAG」这个词在六年里指代过三种完全不同的东西。理解这三次漂移，比背诵任何一种架构都更能帮你判断下一步往哪走。</p>
+  <div class="pills">
+    <span class="pill">2020 <b>Lewis et al.</b></span>
+    <span class="pill">2022 <b>Naive RAG</b></span>
+    <span class="pill">2024 <b>GraphRAG</b></span>
+    <span class="pill">2025+ <b>Agentic RAG</b></span>
+  </div>
+</header>
+
+<section id="def">
+  <h2><span class="n">§1</span>「RAG」的三次定义漂移</h2>
+  <p>先把一个常见误会拆掉：今天工程界说的 RAG，和 2020 年论文里的 RAG，<b>不是同一个东西</b>。这个词经历了三次语义漂移：</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs>
+        <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/>
+        </marker>
+      </defs>
+      <!-- box 1 -->
+      <rect x="10" y="30" width="210" height="120" rx="10" fill="#fff" stroke="#e7e1d6"/>
+      <text x="115" y="14" text-anchor="middle" font-size="12" fill="#b5451f" font-weight="700">2020：模型架构</text>
+      <text x="115" y="58" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1a17">检索器 + 生成器</text>
+      <text x="115" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1a17">端到端联合微调</text>
+      <text x="115" y="103" text-anchor="middle" font-size="11.5" fill="#5c574f">DPR + BART，检索文档</text>
+      <text x="115" y="120" text-anchor="middle" font-size="11.5" fill="#5c574f">作为隐变量做边际化</text>
+      <text x="115" y="140" text-anchor="middle" font-size="11" fill="#8a6d3b" font-family="monospace">需要训练</text>
+      <!-- arrow -->
+      <line x1="222" y1="90" x2="252" y2="90" stroke="#5c574f" stroke-width="1.6" marker-end="url(#ar1)"/>
+      <!-- box 2 -->
+      <rect x="255" y="30" width="210" height="120" rx="10" fill="#fff" stroke="#e7e1d6"/>
+      <text x="360" y="14" text-anchor="middle" font-size="12" fill="#b5451f" font-weight="700">2022–23：提示工程模式</text>
+      <text x="360" y="58" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1a17">冻结 LLM + 外部检索管道</text>
+      <text x="360" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1a17">把检索结果塞进 prompt</text>
+      <text x="360" y="103" text-anchor="middle" font-size="11.5" fill="#5c574f">load → split → embed →</text>
+      <text x="360" y="120" text-anchor="middle" font-size="11.5" fill="#5c574f">store → retrieve → generate</text>
+      <text x="360" y="140" text-anchor="middle" font-size="11" fill="#8a6d3b" font-family="monospace">零训练</text>
+      <!-- arrow -->
+      <line x1="467" y1="90" x2="497" y2="90" stroke="#5c574f" stroke-width="1.6" marker-end="url(#ar1)"/>
+      <!-- box 3 -->
+      <rect x="500" y="30" width="210" height="120" rx="10" fill="#fdf7f2" stroke="#b5451f"/>
+      <text x="605" y="14" text-anchor="middle" font-size="12" fill="#b5451f" font-weight="700">2025+：Agent 的工具</text>
+      <text x="605" y="58" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1a17">检索是循环中的一次</text>
+      <text x="605" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1a17">工具调用，按需发起</text>
+      <text x="605" y="103" text-anchor="middle" font-size="11.5" fill="#5c574f">发现知识缺口 → 定向查询</text>
+      <text x="605" y="120" text-anchor="middle" font-size="11.5" fill="#5c574f">→ 读结果 → 决定是否再查</text>
+      <text x="605" y="140" text-anchor="middle" font-size="11" fill="#8a6d3b" font-family="monospace">模型决策</text>
+      <text x="360" y="185" text-anchor="middle" font-size="12" fill="#5c574f">检索从「架构的一部分」→「流水线的固定第一步」→「模型自主调用的工具之一」</text>
+    </svg>
+    <figcaption>三次定义漂移。注意共同点：外部知识注入始终存在，变的是「谁决定检索什么、何时检索」——从训练信号到固定流程，再到模型的自主决策。</figcaption>
+  </figure>
+
+  <div class="box key">
+    <div class="t"><span class="ic">核心</span>为什么这个区分重要</div>
+    <p>你在面试或论文里读到的「RAG 提升了 XX 指标」，必须先看清它说的是哪一代 RAG。原始 RAG（Lewis et al., <a href="https://arxiv.org/abs/2005.11401">arXiv:2005.11401</a>）是把 DPR 检索器和 BART 生成器<b>联合微调</b>的模型架构，检索到的文档被当作隐变量做边际化（RAG-Sequence / RAG-Token 两个变体）。而今天你写的 RAG 系统里没有任何参数被训练——它是围绕冻结 LLM 的<b>工程管道</b>。两者共享的只有一个思想：参数记不住的知识，用检索补。</p>
+  </div>
+</section>
+
+<section id="timeline">
+  <h2><span class="n">§2</span>完整时间线</h2>
+  <div class="timeline">
+    <div class="tl"><div class="yr">2017</div><div class="pt"></div><div class="body"><b>DrQA（Facebook）</b><div class="d">开放域问答的「检索 + 阅读器」两段式：TF-IDF/BM25 检索维基百科，阅读模型抽取答案。今天 RAG 架构的直系祖先。</div></div></div>
+    <div class="tl"><div class="yr">2020.02</div><div class="pt"></div><div class="body"><b>REALM（Google）</b><div class="d">首次把检索器放进语言模型<b>预训练</b>，端到端联合训练——检索器由下游任务信号驱动学习。</div></div></div>
+    <div class="tl"><div class="yr">2020.04</div><div class="pt"></div><div class="body"><b>DPR（Karpukhin et al.）</b><div class="d">双塔（dual-encoder）稠密检索 + 对比学习，首次系统性证明稠密向量可击败 BM25。今天所有「embedding + 向量库」范式的奠基工作。</div></div></div>
+    <div class="tl"><div class="yr">2020.05</div><div class="pt"></div><div class="body"><b>RAG 原始论文（Lewis et al., NeurIPS 2020）</b><div class="d">「RAG」一词诞生。DPR + BART 联合微调，三个开放域 QA 达到 SOTA。<span class="anchor-note">arXiv:2005.11401</span></div></div></div>
+    <div class="tl"><div class="yr">2021</div><div class="pt"></div><div class="body"><b>FiD（Izacard &amp; Grave）</b><div class="d">Fusion-in-Decoder：每个检索段落独立编码、在 decoder 中融合，能吃下 100 个段落，长期霸榜 QA。</div></div></div>
+    <div class="tl"><div class="yr">2021.12</div><div class="pt"></div><div class="body"><b>RETRO（DeepMind）</b><div class="d">从 2 万亿 token 数据库检索，chunked cross-attention 注入邻近块，以 <b>25 倍更少参数</b>达到 GPT-3 级性能——证明外部知识可以替代参数规模。<span class="anchor-note">arXiv:2112.04426</span></div></div></div>
+    <div class="tl alt"><div class="yr">2022.11</div><div class="pt"></div><div class="body"><b>ChatGPT 引爆 + LangChain / LlamaIndex</b><div class="d">「给 LLM 接私有数据」成为第一大工程问题。Naive RAG 流水线定型；Pinecone/Weaviate/Chroma 向量库融资潮。</div></div></div>
+    <div class="tl alt"><div class="yr">2022.12</div><div class="pt"></div><div class="body"><b>HyDE</b><div class="d">用 LLM 生成「假设答案文档」再检索，缓解 query-doc 语义鸿沟。查询变换技术起点。<span class="anchor-note">arXiv:2212.10496</span></div></div></div>
+    <div class="tl alt"><div class="yr">2023.10</div><div class="pt"></div><div class="body"><b>Self-RAG</b><div class="d">模型输出反思 token 自主决定是否检索、自评生成质量——「按需检索」开山之作。<span class="anchor-note">arXiv:2310.11511</span></div></div></div>
+    <div class="tl"><div class="yr">2024.01</div><div class="pt"></div><div class="body"><b>RAPTOR / CRAG</b><div class="d">RAPTOR 用递归聚类摘要构建多层树；CRAG 给检索结果加质量评估与纠错回退。「高级 RAG」技术密集涌现。</div></div></div>
+    <div class="tl"><div class="yr">2024.04</div><div class="pt"></div><div class="body"><b>Microsoft GraphRAG</b><div class="d">「From Local to Global」：实体知识图谱 + Leiden 社区分层摘要，专攻全局性问题（QFS）。→ <a href="04-graphrag.html">第 4 章精读</a><span class="anchor-note">arXiv:2404.16130</span></div></div></div>
+    <div class="tl"><div class="yr">2024.05</div><div class="pt"></div><div class="body"><b>HippoRAG（NeurIPS 2024）</b><div class="d">海马体记忆理论启发：OpenIE 三元组图 + Personalized PageRank，一次图遍历完成多跳。<span class="anchor-note">arXiv:2405.14831</span></div></div></div>
+    <div class="tl"><div class="yr">2024.07</div><div class="pt"></div><div class="body"><b>ColPali</b><div class="d">跳过 OCR 和解析，把 PDF 页面截图直接编码为 patch 多向量做 late interaction 检索——视觉检索路线开端。<span class="anchor-note">arXiv:2407.01449</span></div></div></div>
+    <div class="tl"><div class="yr">2024.09</div><div class="pt"></div><div class="body"><b>Anthropic Contextual Retrieval / Jina Late Chunking</b><div class="d">两条路线解决同一个问题——chunk 失去全文语境：前者用 LLM 给每个 chunk 生成语境前缀（top-20 检索失败率 -49%），后者在 token embedding 层面切块。</div></div></div>
+    <div class="tl"><div class="yr">2024.10</div><div class="pt"></div><div class="body"><b>LightRAG（HKUDS）</b><div class="d">砍掉社区检测的轻量图 RAG：双层关键词检索 + 增量更新。→ <a href="05-lightrag.html">第 5 章精读</a><span class="anchor-note">arXiv:2410.05779</span></div></div></div>
+    <div class="tl"><div class="yr">2024.11</div><div class="pt"></div><div class="body"><b>LazyGraphRAG（微软）</b><div class="d">微软对自己重索引路线的纠偏：索引零 LLM 调用（名词短语共现图），LLM 推迟到查询时。索引成本降至 GraphRAG 的 0.1%。</div></div></div>
+    <div class="tl alt"><div class="yr">2025.02</div><div class="pt"></div><div class="body"><b>Deep Research 引爆</b><div class="d">OpenAI Deep Research（HLE 26.6%，约为 o1 的 3 倍）两周后被 Perplexity 打到免费档；同月 NSA/MoBA 稀疏注意力、HippoRAG 2「From RAG to Memory」、A-MEM 记忆论文密集发布。</div></div></div>
+    <div class="tl alt"><div class="yr">2025.03</div><div class="pt"></div><div class="body"><b>RL 学检索谱系开启</b><div class="d">Search-R1 / R1-Searcher / DeepRetrieval：端到端 RL 教模型「何时搜、怎么搜」——检索策略从人写的工作流变成训练出的模型能力。年内经 Kimi-Researcher 到 Tongyi DeepResearch 开源完成闭环。<span class="anchor-note">arXiv:2503.09516</span></div></div></div>
+    <div class="tl alt"><div class="yr">2025.04</div><div class="pt"></div><div class="body"><b>「RAG is dead」顶点</b><div class="d">Llama 4 Scout 标称 10M 上下文；独立测试 128K 文档理解仅 15.6%，争论以「长上下文≠有效上下文」收场。同月 mem0、sleep-time compute 两篇记忆论文发布。</div></div></div>
+    <div class="tl alt"><div class="yr">2025.05</div><div class="pt"></div><div class="body"><b>Claude Code 弃向量改 grep</b><div class="d">「agentic search outperformed everything, by a lot」——代码检索掀起 grep vs embeddings 之争，Cursor/Devin 跟进。</div></div></div>
+    <div class="tl alt"><div class="yr">2025.06–09</div><div class="pt"></div><div class="body"><b>Context Engineering 学科化</b><div class="d">Karpathy 站队（06）→ Manus 实战六原则（07）→ Anthropic 官方指南（09）：「RAG 是 context engineering 的子问题」成为主流叙事；RAGFlow 年终综述称之为「From RAG to Context」。</div></div></div>
+    <div class="tl alt"><div class="yr">2025.11</div><div class="pt"></div><div class="body"><b>RAG 管道云 API 化</b><div class="d">Gemini File Search 与 OpenAI file_search 把「分块-嵌入-检索-引用」整条管道做成托管 API；MCP 捐给 Linux 基金会，检索作为 MCP 工具接入 agent 成默认架构。</div></div></div>
+    <div class="tl alt"><div class="yr">2026 H1</div><div class="pt"></div><div class="body"><b>吸收与检验</b><div class="d">记忆成为平台 API 一等公民（Claude 持久记忆 beta）、多模态检索实用化（Qwen3-VL-Embedding）、1M 上下文 + KV cache 降到 10% 让检索粒度变粗、deep research 评测转向 rubric 化（最强 agent 通过率 &lt;50%）。</div></div></div>
+  </div>
+  <div class="box tip">
+    <div class="t"><span class="ic">展开</span>2025–2026 值得单独一章</div>
+    <p>这两年的变化密度远超此前五年——逐月编年、RL 学检索谱系、记忆系统演化三条线的完整梳理见<a href="10-recent.html">第 10 章《2025–2026 编年》</a>（含 2026 上半年实时调研）。</p>
+  </div>
+</section>
+
+<section id="era1">
+  <h2><span class="n">§3</span>史前时代 2017–2021：检索增强是训练问题</h2>
+  <p>这个阶段的所有工作都发生在「LLM 还不够强」的前提下，因此思路是<b>把检索纳入训练</b>，让模型学会利用外部知识：</p>
+  <table>
+    <tr><th>工作</th><th>检索方式</th><th>知识注入方式</th><th>留给今天的遗产</th></tr>
+    <tr><td><b>DrQA</b> 2017</td><td>TF-IDF / BM25</td><td>阅读器从检索段落抽取答案</td><td class="vs">两段式「检索→阅读」架构</td></tr>
+    <tr><td><b>REALM</b> 2020</td><td>可学习稠密检索器</td><td>预训练时端到端联合优化</td><td class="vs">检索器可以被任务信号训练</td></tr>
+    <tr><td><b>DPR</b> 2020</td><td>双塔 BERT + 对比学习</td><td>—（纯检索工作）</td><td class="vs"><b>embedding 检索范式本身</b></td></tr>
+    <tr><td><b>RAG</b> 2020</td><td>DPR</td><td>检索文档作隐变量，与 BART 联合微调</td><td class="vs">「RAG」这个名字</td></tr>
+    <tr><td><b>FiD</b> 2021</td><td>DPR/BM25</td><td>百段落独立编码、decoder 融合</td><td class="vs">多证据融合的思想</td></tr>
+    <tr><td><b>RETRO</b> 2021</td><td>冻结 BERT 近邻检索</td><td>chunked cross-attention 层</td><td class="vs">外部知识 ≈ 参数规模的证明</td></tr>
+  </table>
+  <p class="sub">值得注意：DPR 证明「稠密向量打败 BM25」用的是<b>在 QA 数据上训练过的</b>检索器。今天大家拿通用 embedding 模型做检索时 BM25 经常反杀，正是因为丢掉了这个前提——这解释了为什么 hybrid 检索（第 2 章）是生产默认。</p>
+</section>
+
+<section id="era2">
+  <h2><span class="n">§4</span>工程化爆发 2022–2023：Naive RAG 流水线定型</h2>
+  <p>ChatGPT 之后，问题从「怎么训练一个会检索的模型」变成「怎么让一个冻结的、通过 API 访问的 LLM 用上我的私有数据」。答案就是至今仍是所有教程起点的六步流水线：</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 720 150" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs>
+        <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/>
+        </marker>
+      </defs>
+      <text x="10" y="20" font-size="12" fill="#8a6d3b" font-weight="700" font-family="monospace">索引期（离线）</text>
+      <rect x="10" y="32" width="100" height="46" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="60" y="52" text-anchor="middle" font-size="12.5" font-weight="700">Load</text><text x="60" y="68" text-anchor="middle" font-size="10.5" fill="#5c574f">加载文档</text>
+      <line x1="112" y1="55" x2="132" y2="55" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <rect x="135" y="32" width="100" height="46" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="185" y="52" text-anchor="middle" font-size="12.5" font-weight="700">Split</text><text x="185" y="68" text-anchor="middle" font-size="10.5" fill="#5c574f">切分 chunk</text>
+      <line x1="237" y1="55" x2="257" y2="55" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <rect x="260" y="32" width="100" height="46" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="310" y="52" text-anchor="middle" font-size="12.5" font-weight="700">Embed</text><text x="310" y="68" text-anchor="middle" font-size="10.5" fill="#5c574f">向量化</text>
+      <line x1="362" y1="55" x2="382" y2="55" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <rect x="385" y="32" width="100" height="46" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="435" y="52" text-anchor="middle" font-size="12.5" font-weight="700">Store</text><text x="435" y="68" text-anchor="middle" font-size="10.5" fill="#5c574f">写入向量库</text>
+      <text x="10" y="112" font-size="12" fill="#1f6f6b" font-weight="700" font-family="monospace">查询期（在线）</text>
+      <rect x="135" y="94" width="120" height="46" rx="8" fill="#f2f8f7" stroke="#1f6f6b"/><text x="195" y="114" text-anchor="middle" font-size="12.5" font-weight="700">Retrieve</text><text x="195" y="130" text-anchor="middle" font-size="10.5" fill="#5c574f">top-k 相似检索</text>
+      <line x1="257" y1="117" x2="277" y2="117" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar2)"/>
+      <rect x="280" y="94" width="130" height="46" rx="8" fill="#f2f8f7" stroke="#1f6f6b"/><text x="345" y="114" text-anchor="middle" font-size="12.5" font-weight="700">Generate</text><text x="345" y="130" text-anchor="middle" font-size="10.5" fill="#5c574f">拼 prompt 生成答案</text>
+      <path d="M 435 80 Q 435 117 415 117" fill="none" stroke="#b5451f" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ar2)"/>
+      <text x="470" y="105" font-size="10.5" fill="#b5451f">向量库服务两个阶段</text>
+    </svg>
+    <figcaption>Naive RAG 六步流水线。上排离线索引、下排在线查询，向量库是两个阶段的交汇点。这条流水线的每一步都会在第 2 章被拆开深挖。</figcaption>
+  </figure>
+
+  <p>这个阶段确立的生态分工至今有效：<b>LlamaIndex</b>（原 GPT Index）专注数据索引与检索，<b>LangChain</b> 提供链式编排抽象，向量库负责存储与 ANN 检索。但 Naive RAG 的问题也很快暴露——</p>
+  <div class="two">
+    <div class="mini"><div class="h">检索侧失败</div><p>语义相似 ≠ 答案相关；chunk 切断上下文；专有名词/型号匹配不上；多跳问题一次检索拿不全证据。</p></div>
+    <div class="mini"><div class="h">生成侧失败</div><p>检索进噪声导致幻觉；「Lost in the Middle」——上下文中间的证据被注意力忽略；无法回答「全局性」问题（没有任何 chunk 包含答案）。</p></div>
+  </div>
+  <p>2023–2024 涌现的所有「高级 RAG」技术——查询变换、混合检索、重排序、GraphRAG、树结构——本质上都是在修补这两类失败。这也是本系列教程的组织逻辑。</p>
+</section>
+
+<section id="era3">
+  <h2><span class="n">§5</span>结构化与前沿 2024–2026：三条修补路线</h2>
+  <p>面对 Naive RAG 的失败模式，行业分化出三条互补的路线：</p>
+  <h3>路线一：把管道每一环做精（Advanced RAG）</h3>
+  <p>hybrid 检索 + RRF 融合、cross-encoder 重排序、contextual retrieval、late chunking、评估驱动迭代。特点是<b>不改变流水线拓扑</b>，只提升每一环的质量。详见<a href="02-pipeline.html">第 2 章</a>。</p>
+  <h3>路线二：给语料建结构（Structured RAG）</h3>
+  <p>GraphRAG 建实体图 + 社区摘要（<a href="04-graphrag.html">第 4 章</a>）、LightRAG 轻量化图检索（<a href="05-lightrag.html">第 5 章</a>）、HippoRAG 用 PageRank 做多跳、RAPTOR/PageIndex 建树（<a href="06-pageindex.html">第 6 章</a>）。特点是<b>把检索单位从「文本块」升级为「结构节点」</b>，换取多跳与全局能力，代价是索引成本。</p>
+  <h3>路线三：把决策交给模型（Agentic RAG）</h3>
+  <p>Self-RAG 的按需检索、CRAG 的检索纠错、deep research 的多轮迭代检索、Claude Code 用 grep 式 agentic search 替代向量库。特点是<b>检索次数和策略由模型在推理中决定</b>。详见<a href="07-frontier.html">第 7 章</a>。</p>
+
+  <div class="box tip">
+    <div class="t"><span class="ic">视角</span>三条路线不互斥</div>
+    <p>生产系统往往同时用三条路线：结构化索引（路线二）提供高质量检索工具，工具内部是精调过的管道（路线一），最外层由 agent 决定调用哪个工具、调用几次（路线三）。后面章节的本地项目 gbrain（四层混合检索）和 MiroFish（ReAct 多工具报告）都是这种组合的实例。</p>
+  </div>
+</section>
+
+<section id="dead">
+  <h2><span class="n">§6</span>「RAG 已死」之争：长上下文吃掉检索了吗</h2>
+  <p>每当上下文窗口翻倍，「RAG is dead」就会重现一次。2025 年 Llama 4 Scout 的 10M token 上下文把争论推向顶点。把双方论据摆开：</p>
+  <table>
+    <tr><th>「已死」论据</th><th>反驳（实证）</th></tr>
+    <tr><td class="vs">窗口够大，直接把全部文档塞进去</td><td>「Lost in the Middle」：长上下文中部的证据被注意力稀释，塞得越多找得越差；有效上下文 &lt; 标称上下文</td></tr>
+    <tr><td class="vs">省去索引维护的工程成本</td><td>典型负载下 RAG 比长上下文便宜 <b>8–82 倍</b>且延迟更低（Contextual AI 实测）——每次请求重复计费全量 token 无法摊销</td></tr>
+    <tr><td class="vs">模型自己会在上下文里「检索」</td><td>企业语料远超 10M token；权限控制、数据新鲜度、审计溯源都需要检索层</td></tr>
+  </table>
+  <p>更准确的结论是：<b>死掉的是「向量库 = RAG」的固定等式，活下来的是检索本身</b>。检索正在降级为 agent 上下文工程（context engineering）中的一个工具——有时是向量检索，有时是 grep、SQL、图遍历或树搜索。RAGFlow 2025 年终综述称之为「From RAG to Context」。这个判断是理解后续所有章节的透镜。</p>
+  <p class="sub">来源：<a href="https://contextual.ai/blog/is-rag-dead-yet">contextual.ai/blog/is-rag-dead-yet</a> · <a href="https://ragflow.io/blog/rag-review-2025-from-rag-to-context">ragflow.io RAG Review 2025</a></p>
+</section>
+
+<section id="map">
+  <h2><span class="n">§7</span>范式全景图：五族方案</h2>
+  <p>把 2026 年的检索增强方案按「结构从哪来」分成五族，这张图也是本系列的章节地图：</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <rect x="10" y="10" width="220" height="145" rx="10" fill="#fff" stroke="#e7e1d6"/>
+      <text x="120" y="34" text-anchor="middle" font-size="13.5" font-weight="800" fill="#b5451f">① 向量族（无结构）</text>
+      <text x="120" y="56" text-anchor="middle" font-size="11.5" fill="#5c574f">chunk + embedding + ANN</text>
+      <text x="120" y="78" text-anchor="middle" font-size="11.5" fill="#1c1a17">Naive RAG · Hybrid+RRF</text>
+      <text x="120" y="96" text-anchor="middle" font-size="11.5" fill="#1c1a17">Contextual Retrieval · Late Chunking</text>
+      <text x="120" y="118" text-anchor="middle" font-size="10.5" fill="#8a6d3b" font-family="monospace">→ 第 2 章</text>
+      <text x="120" y="138" text-anchor="middle" font-size="10.5" fill="#2f7d43">快 · 便宜 · 单跳事实强</text>
+
+      <rect x="250" y="10" width="220" height="145" rx="10" fill="#fff" stroke="#e7e1d6"/>
+      <text x="360" y="34" text-anchor="middle" font-size="13.5" font-weight="800" fill="#1f6f6b">② 图族（实体关系结构）</text>
+      <text x="360" y="56" text-anchor="middle" font-size="11.5" fill="#5c574f">LLM 抽取实体图，跨文档关联</text>
+      <text x="360" y="78" text-anchor="middle" font-size="11.5" fill="#1c1a17">GraphRAG · LightRAG · HippoRAG</text>
+      <text x="360" y="96" text-anchor="middle" font-size="11.5" fill="#1c1a17">KAG · Graphiti(时序)</text>
+      <text x="360" y="118" text-anchor="middle" font-size="10.5" fill="#8a6d3b" font-family="monospace">→ 第 4、5 章</text>
+      <text x="360" y="138" text-anchor="middle" font-size="10.5" fill="#2f7d43">多跳 · 全局摘要 · 可溯源</text>
+
+      <rect x="490" y="10" width="220" height="145" rx="10" fill="#fff" stroke="#e7e1d6"/>
+      <text x="600" y="34" text-anchor="middle" font-size="13.5" font-weight="800" fill="#5b4a8a">③ 树族（层级结构）</text>
+      <text x="600" y="56" text-anchor="middle" font-size="11.5" fill="#5c574f">文档自身层级或聚类摘要树</text>
+      <text x="600" y="78" text-anchor="middle" font-size="11.5" fill="#1c1a17">RAPTOR（聚类摘要）</text>
+      <text x="600" y="96" text-anchor="middle" font-size="11.5" fill="#1c1a17">PageIndex（推理树搜索）</text>
+      <text x="600" y="118" text-anchor="middle" font-size="10.5" fill="#8a6d3b" font-family="monospace">→ 第 6 章</text>
+      <text x="600" y="138" text-anchor="middle" font-size="10.5" fill="#2f7d43">长文档 · 抽象层定位 · 可解释</text>
+
+      <rect x="130" y="175" width="220" height="145" rx="10" fill="#fff" stroke="#e7e1d6"/>
+      <text x="240" y="199" text-anchor="middle" font-size="13.5" font-weight="800" fill="#2b5f8a">④ 视觉族（免解析）</text>
+      <text x="240" y="221" text-anchor="middle" font-size="11.5" fill="#5c574f">页面截图直接编码检索</text>
+      <text x="240" y="243" text-anchor="middle" font-size="11.5" fill="#1c1a17">ColPali · ColQwen</text>
+      <text x="240" y="261" text-anchor="middle" font-size="11.5" fill="#1c1a17">DeepSeek-OCR（光学压缩）</text>
+      <text x="240" y="283" text-anchor="middle" font-size="10.5" fill="#8a6d3b" font-family="monospace">→ 第 3、7 章</text>
+      <text x="240" y="303" text-anchor="middle" font-size="10.5" fill="#2f7d43">图表/扫描件碾压文本管道</text>
+
+      <rect x="370" y="175" width="220" height="145" rx="10" fill="#fdf7f2" stroke="#b5451f" stroke-width="1.5"/>
+      <text x="480" y="199" text-anchor="middle" font-size="13.5" font-weight="800" fill="#b5451f">⑤ Agentic 族（模型决策）</text>
+      <text x="480" y="221" text-anchor="middle" font-size="11.5" fill="#5c574f">检索 = 循环中的工具调用</text>
+      <text x="480" y="243" text-anchor="middle" font-size="11.5" fill="#1c1a17">Self-RAG · CRAG · Deep Research</text>
+      <text x="480" y="261" text-anchor="middle" font-size="11.5" fill="#1c1a17">agentic search（grep 式）</text>
+      <text x="480" y="283" text-anchor="middle" font-size="10.5" fill="#8a6d3b" font-family="monospace">→ 第 7 章</text>
+      <text x="480" y="303" text-anchor="middle" font-size="10.5" fill="#2f7d43">可组合以上任意一族作工具</text>
+    </svg>
+    <figcaption>五族方案。①–④ 回答「用什么结构索引知识」，⑤ 回答「谁来决定检索策略」——所以第五族与前四族是正交的，可以任意组合。</figcaption>
+  </figure>
+
+  <div class="box">
+    <div class="t"><span class="ic">下一步</span>阅读建议</div>
+    <p>如果你要建生产系统，按顺序读第 2、3 章打底（管道 + 解析是 80% 的质量来源）；如果你对图/树结构的取舍感兴趣，直接跳第 4–6 章的代码精读；只想了解前沿趋势则看第 7 章。</p>
+  </div>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§8</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">RAG 原始论文</span> — Lewis et al., "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks", NeurIPS 2020. <a href="https://arxiv.org/abs/2005.11401">arxiv.org/abs/2005.11401</a></li>
+    <li><span class="rt">DPR</span> — Karpukhin et al., "Dense Passage Retrieval for Open-Domain Question Answering", EMNLP 2020. <a href="https://arxiv.org/abs/2004.04906">arxiv.org/abs/2004.04906</a></li>
+    <li><span class="rt">REALM</span> — Guu et al., ICML 2020. <a href="https://arxiv.org/abs/2002.08909">arxiv.org/abs/2002.08909</a></li>
+    <li><span class="rt">FiD</span> — Izacard &amp; Grave, "Leveraging Passage Retrieval with Generative Models", EACL 2021. <a href="https://arxiv.org/abs/2007.01282">arxiv.org/abs/2007.01282</a></li>
+    <li><span class="rt">RETRO</span> — Borgeaud et al. (DeepMind), "Improving Language Models by Retrieving from Trillions of Tokens". <a href="https://arxiv.org/abs/2112.04426">arxiv.org/abs/2112.04426</a></li>
+    <li><span class="rt">从 DrQA 到 RAG 的演进梳理</span> — <a href="https://medium.com/@mkmar/the-evolution-of-rag-from-drqa-pipelines-to-just-in-time-context-for-llms-c6e75d26bf9f">The Evolution of RAG: From DrQA Pipelines to Just-in-Time Context</a>；<a href="https://www.gofar.ai/p/rag-realm-retro-and-beyond-the-evolution">RAG, REALM, RETRO and Beyond</a></li>
+    <li><span class="rt">HyDE</span> — Gao et al. <a href="https://arxiv.org/abs/2212.10496">arxiv.org/abs/2212.10496</a>；<span class="rt">Self-RAG</span> — Asai et al. <a href="https://arxiv.org/abs/2310.11511">arxiv.org/abs/2310.11511</a></li>
+    <li><span class="rt">Microsoft GraphRAG</span> — Edge et al., "From Local to Global". <a href="https://arxiv.org/abs/2404.16130">arxiv.org/abs/2404.16130</a>；<span class="rt">LightRAG</span> — <a href="https://arxiv.org/abs/2410.05779">arxiv.org/abs/2410.05779</a>；<span class="rt">HippoRAG</span> — <a href="https://arxiv.org/abs/2405.14831">arxiv.org/abs/2405.14831</a></li>
+    <li><span class="rt">Anthropic Contextual Retrieval</span> — <a href="https://www.anthropic.com/engineering/contextual-retrieval">anthropic.com/engineering/contextual-retrieval</a>；<span class="rt">Late Chunking（Jina）</span> — <a href="https://arxiv.org/abs/2409.04701">arxiv.org/abs/2409.04701</a></li>
+    <li><span class="rt">ColPali</span> — Faysse et al. <a href="https://arxiv.org/abs/2407.01449">arxiv.org/abs/2407.01449</a></li>
+    <li><span class="rt">LazyGraphRAG</span> — Microsoft Research Blog. <a href="https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/">microsoft.com/research/blog/lazygraphrag</a></li>
+    <li><span class="rt">「RAG 已死」之争</span> — <a href="https://contextual.ai/blog/is-rag-dead-yet">Contextual AI: Is RAG Dead Yet?</a>（成本 8–82× 实测）；<a href="https://lighton.ai/lighton-blogs/rag-is-dead-long-live-rag-retrieval-in-the-age-of-agents">LightOn: RAG is Dead, Long Live RAG</a></li>
+    <li><span class="rt">From RAG to Context</span> — RAGFlow 2025 年度综述. <a href="https://ragflow.io/blog/rag-review-2025-from-rag-to-context">ragflow.io/blog/rag-review-2025-from-rag-to-context</a></li>
+    <li><span class="rt">LangChain / LlamaIndex 生态分工</span> — <a href="https://medium.com/@mohitgupta.mg878/llamaindex-vs-langchain-demystifying-two-pillars-of-the-rag-ecosystem-19109ef934fa">LlamaIndex vs LangChain: Two Pillars of the RAG Ecosystem</a></li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="index.html"><span class="lbl">← 上一页</span><div class="ti">学习地图</div></a>
+  <a href="02-pipeline.html" class="next"><span class="lbl">下一页 →</span><div class="ti">传统 RAG 全链路</div></a>
+</div>
+<footer>knowledge-base-learning · 基于本地仓库（LightRAG / graphrag / PageIndex / MiroFish / gbrain）与公开资料整理 · 2026-07</footer>
+</main>
+</div>
+</body>
+</html>

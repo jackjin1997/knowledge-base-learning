@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>02 · 传统 RAG 全链路 —— 从 Chunking 到重排序 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#overview">全链路总览</a></li>
+    <li><a href="#chunking">Chunking：切分策略</a></li>
+    <li><a href="#embedding">Embedding：模型选型</a></li>
+    <li><a href="#index">索引：HNSW / IVF 与向量库</a></li>
+    <li><a href="#retrieval">检索：Dense / Sparse / Hybrid</a></li>
+    <li><a href="#rerank">重排序：Cross-Encoder 与 ColBERT</a></li>
+    <li><a href="#query">查询变换：HyDE 等</a></li>
+    <li><a href="#eval">评估：RAGAS 与检索指标</a></li>
+    <li><a href="#checklist">生产配置清单</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html" class="cur">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 02 · The Pipeline</div>
+  <h1>传统 RAG 全链路：每一环的机制、数字与陷阱</h1>
+  <p class="lead">本章是全系列的重心。把六步流水线拆成八个技术决策点，每个决策点给出机制解释、实证数字和生产默认值——以及一个反复出现的教训：简单基线出奇能打。</p>
+  <div class="pills">
+    <span class="pill">chunking <b>recursive 512</b></span>
+    <span class="pill">检索 <b>hybrid + RRF</b></span>
+    <span class="pill">重排 <b>cross-encoder</b></span>
+    <span class="pill">评估 <b>recall@k + RAGAS</b></span>
+  </div>
+</header>
+
+<section id="overview">
+  <h2><span class="n">§1</span>全链路总览</h2>
+  <p>把第 1 章的六步流水线展开成工程视角的完整管道。灰色是数据流，<b style="color:#b5451f">橙色节点是本章的八个决策点</b>：</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs>
+        <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/>
+        </marker>
+      </defs>
+      <text x="10" y="22" font-size="12" fill="#8a6d3b" font-weight="700" font-family="monospace">索引期</text>
+      <rect x="10" y="34" width="120" height="52" rx="8" fill="#fff" stroke="#e7e1d6"/>
+      <text x="70" y="56" text-anchor="middle" font-size="12.5" font-weight="700">文档解析</text>
+      <text x="70" y="74" text-anchor="middle" font-size="10.5" fill="#5c574f">PDF→Markdown</text>
+      <line x1="132" y1="60" x2="152" y2="60" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="155" y="34" width="120" height="52" rx="8" fill="#fdf7f2" stroke="#b5451f"/>
+      <text x="215" y="56" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b5451f">① Chunking</text>
+      <text x="215" y="74" text-anchor="middle" font-size="10.5" fill="#5c574f">策略 × 大小 × 语境</text>
+      <line x1="277" y1="60" x2="297" y2="60" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="300" y="34" width="120" height="52" rx="8" fill="#fdf7f2" stroke="#b5451f"/>
+      <text x="360" y="56" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b5451f">② Embedding</text>
+      <text x="360" y="74" text-anchor="middle" font-size="10.5" fill="#5c574f">模型 × 维度</text>
+      <line x1="422" y1="60" x2="442" y2="60" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="445" y="34" width="120" height="52" rx="8" fill="#fdf7f2" stroke="#b5451f"/>
+      <text x="505" y="56" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b5451f">③ 索引</text>
+      <text x="505" y="74" text-anchor="middle" font-size="10.5" fill="#5c574f">HNSW/IVF × 向量库</text>
+      <line x1="567" y1="60" x2="587" y2="60" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="590" y="34" width="120" height="52" rx="8" fill="#fff" stroke="#e7e1d6"/>
+      <text x="650" y="56" text-anchor="middle" font-size="12.5" font-weight="700">向量库</text>
+      <text x="650" y="74" text-anchor="middle" font-size="10.5" fill="#5c574f">+ BM25 倒排</text>
+
+      <text x="10" y="140" font-size="12" fill="#1f6f6b" font-weight="700" font-family="monospace">查询期</text>
+      <rect x="10" y="152" width="110" height="52" rx="8" fill="#fff" stroke="#e7e1d6"/>
+      <text x="65" y="174" text-anchor="middle" font-size="12.5" font-weight="700">用户查询</text>
+      <line x1="122" y1="178" x2="142" y2="178" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="145" y="152" width="120" height="52" rx="8" fill="#fdf7f2" stroke="#b5451f"/>
+      <text x="205" y="174" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b5451f">④ 查询变换</text>
+      <text x="205" y="192" text-anchor="middle" font-size="10.5" fill="#5c574f">HyDE/multi-query</text>
+      <line x1="267" y1="178" x2="287" y2="178" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="290" y="152" width="130" height="52" rx="8" fill="#fdf7f2" stroke="#b5451f"/>
+      <text x="355" y="174" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b5451f">⑤ 混合检索</text>
+      <text x="355" y="192" text-anchor="middle" font-size="10.5" fill="#5c574f">dense+BM25 → RRF</text>
+      <line x1="422" y1="178" x2="442" y2="178" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="445" y="152" width="120" height="52" rx="8" fill="#fdf7f2" stroke="#b5451f"/>
+      <text x="505" y="174" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b5451f">⑥ 重排序</text>
+      <text x="505" y="192" text-anchor="middle" font-size="10.5" fill="#5c574f">top-100 → top-5</text>
+      <line x1="567" y1="178" x2="587" y2="178" stroke="#5c574f" stroke-width="1.5" marker-end="url(#ar3)"/>
+      <rect x="590" y="152" width="120" height="52" rx="8" fill="#fff" stroke="#e7e1d6"/>
+      <text x="650" y="174" text-anchor="middle" font-size="12.5" font-weight="700">LLM 生成</text>
+      <text x="650" y="192" text-anchor="middle" font-size="10.5" fill="#5c574f">拼上下文 + 引用</text>
+
+      <rect x="240" y="248" width="240" height="52" rx="8" fill="#fbf7ee" stroke="#8a6d3b"/>
+      <text x="360" y="270" text-anchor="middle" font-size="12.5" font-weight="700" fill="#8a6d3b">⑦⑧ 评估闭环</text>
+      <text x="360" y="288" text-anchor="middle" font-size="10.5" fill="#5c574f">recall@k / nDCG / RAGAS 驱动以上所有选择</text>
+      <path d="M 360 246 L 360 216" fill="none" stroke="#8a6d3b" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#ar3)"/>
+    </svg>
+    <figcaption>八个决策点。注意评估在图的底部但逻辑上在最前面：没有评估集，前面所有选择都是猜。</figcaption>
+  </figure>
+  <div class="box warn">
+    <div class="t"><span class="ic">教训</span>本章反复出现的模式</div>
+    <p>每一环都存在「简单基线出奇能打」的实证：固定大小 chunking 打平语义 chunking、BM25 反杀 dense 检索、RRF 不需要调权重。正确的姿势不是堆高级技巧，而是<b>先搭最简管道 + 评估集，再评估驱动地逐环升级</b>。</p>
+  </div>
+</section>
+
+<section id="chunking">
+  <h2><span class="n">§2</span>Chunking：切分策略</h2>
+  <p>Chunk 是检索的原子单位，切分决定了「一次检索能拿到的语义完整度」。核心矛盾：<b>块小 → 检索精准但语境碎；块大 → 语境全但 embedding 语义被稀释、更容易检入噪声</b>。</p>
+
+  <h3>策略谱系</h3>
+  <table>
+    <tr><th>策略</th><th>机制</th><th>适用</th><th>成本</th></tr>
+    <tr><td><b>Fixed-size</b></td><td>按 token 数硬切 + overlap（常 10–20%）</td><td class="vs">兜底基线，效果意外地好</td><td class="good">零</td></tr>
+    <tr><td><b>Recursive</b></td><td>按分隔符层级递归切（段落→句子→词），LangChain 默认</td><td class="vs"><b>生产默认</b>，通用文本</td><td class="good">零</td></tr>
+    <tr><td><b>Document-based</b></td><td>按 Markdown 标题 / 代码结构等文档固有边界切</td><td class="vs">结构化文档（需好的解析，见第 3 章）</td><td class="good">零</td></tr>
+    <tr><td><b>Semantic</b></td><td>按相邻句 embedding 相似度的断点切</td><td class="vs">理论美好，实证不划算（见下）</td><td class="mid">embedding 调用</td></tr>
+    <tr><td><b>Late chunking</b></td><td>长上下文模型编码<b>整篇</b>后在 token embedding 层面切块池化</td><td class="vs">跨块指代严重的文档</td><td class="mid">长上下文 embedding</td></tr>
+    <tr><td><b>Contextual</b></td><td>LLM 为每个 chunk 生成 50–100 token 语境前缀再嵌入</td><td class="vs">高价值语料，愿付索引期 LLM 成本</td><td class="bad">每 chunk 一次 LLM</td></tr>
+  </table>
+
+  <h3>实证数字：打破「越智能越好」</h3>
+  <ul>
+    <li>NAACL 2025 Findings：<b>固定 200 词的块打平或超过语义分块</b>，语义分块的额外计算不划算。</li>
+    <li>Vecta 2026.02 对 7 种策略 × 50 篇学术论文的基准：<b>recursive 512-token 以 69% 准确率排第一，semantic chunking 只有 54%</b>。</li>
+    <li>Anthropic Contextual Retrieval（2024.09）：语境前缀 + BM25 使 top-20 检索失败率<b>从 5.7% 降到 2.9%（−49%）</b>，再叠加重排序共降 67%。用 prompt caching 把索引成本压到可接受。<a href="https://www.anthropic.com/engineering/contextual-retrieval">来源</a></li>
+    <li>Snowflake 金融 RAG 实证：解析输出层级结构后做 <b>markdown-aware chunking，比固定/语义切分高 5–10 个百分点</b>——切分质量的上限由上游解析决定（第 3 章展开）。</li>
+  </ul>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 720 205" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <text x="175" y="22" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b5451f">普通 chunking：语境丢失</text>
+      <rect x="30" y="34" width="290" height="42" rx="8" fill="#fff" stroke="#e7e1d6"/>
+      <text x="175" y="53" text-anchor="middle" font-size="11" fill="#1c1a17">"该公司收入较上季度增长 3%。"</text>
+      <text x="175" y="68" text-anchor="middle" font-size="10.5" fill="#b5451f">哪家公司？哪个季度？— 检索时无从匹配</text>
+      <text x="545" y="22" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1f6f6b">Contextual Retrieval：LLM 补语境</text>
+      <rect x="400" y="34" width="290" height="76" rx="8" fill="#f2f8f7" stroke="#1f6f6b"/>
+      <text x="545" y="53" text-anchor="middle" font-size="10.5" fill="#1f6f6b">[前缀] 本块出自 ACME 公司 2023 Q2 SEC 文件，</text>
+      <text x="545" y="68" text-anchor="middle" font-size="10.5" fill="#1f6f6b">讨论其季度收入表现。</text>
+      <text x="545" y="90" text-anchor="middle" font-size="11" fill="#1c1a17">"该公司收入较上季度增长 3%。"</text>
+      <text x="175" y="140" text-anchor="middle" font-size="12.5" font-weight="700" fill="#5b4a8a">Late Chunking：先整篇编码后切</text>
+      <rect x="30" y="152" width="290" height="42" rx="8" fill="#f6f4fa" stroke="#5b4a8a"/>
+      <text x="175" y="171" text-anchor="middle" font-size="10.5" fill="#1c1a17">整篇 → token embeddings → 按边界池化成块向量</text>
+      <text x="175" y="186" text-anchor="middle" font-size="10.5" fill="#5b4a8a">每个块向量天然带全文语境，零 LLM 调用</text>
+      <text x="545" y="140" text-anchor="middle" font-size="12.5" font-weight="700" fill="#8a6d3b">两者对比</text>
+      <text x="545" y="163" text-anchor="middle" font-size="10.5" fill="#5c574f">Contextual：语境显式可读，可同时喂 BM25，索引贵</text>
+      <text x="545" y="181" text-anchor="middle" font-size="10.5" fill="#5c574f">Late：零额外调用，但语境隐式、只作用于 dense 路</text>
+    </svg>
+    <figcaption>解决「chunk 失去全文语境」的两条路线。Anthropic 走显式文本前缀（arXiv 无，工程博客），Jina 走隐式向量池化（arXiv:2409.04701）。</figcaption>
+  </figure>
+
+  <div class="box tip">
+    <div class="t"><span class="ic">默认</span>起手配置</div>
+    <p>recursive 切分、400–600 token、10–15% overlap、保留标题面包屑作为 chunk 元数据。有了评估集之后，再考虑 contextual retrieval（提升最实证）或 document-based（若解析质量高）。</p>
+  </div>
+</section>
+
+<section id="embedding">
+  <h2><span class="n">§3</span>Embedding：模型选型</h2>
+  <p>Embedding 模型决定「语义相似」的定义。选型三问：多语言吗？自托管吗？维度预算多少？</p>
+  <table>
+    <tr><th>模型</th><th>MTEB 多语言</th><th>特点</th></tr>
+    <tr><td><b>Qwen3-Embedding</b> 8B/4B/0.6B</td><td><b>70.58</b>（8B，2025.6 登顶）</td><td class="vs">开源，维度 32–4096 可调（MRL），中文强</td></tr>
+    <tr><td><b>Cohere embed-v4</b></td><td>≈65.2</td><td class="vs">商用 API，多模态输入</td></tr>
+    <tr><td><b>OpenAI text-embedding-3-large</b></td><td>≈64.6</td><td class="vs">生态默认，支持维度截断（3072→256）</td></tr>
+    <tr><td><b>BGE-M3</b></td><td>≈63.0</td><td class="vs">开源经典：<b>单模型同时输出 dense / sparse / multi-vector 三种表示</b>，做 hybrid 检索的天然选择</td></tr>
+    <tr><td><b>Voyage</b>（voyage-4 系）</td><td>—</td><td class="vs">检索专精，被 MongoDB 收购，部分 Apache 2.0</td></tr>
+  </table>
+  <h3>两个工程要点</h3>
+  <p><b>Matryoshka（MRL）</b>：训练时让向量的前缀维度也可独立使用，推理时可直接截断（如 3072→256）换 12 倍存储和更快的 ANN，精度损失很小。OpenAI text-embedding-3 与 Qwen3-Embedding 都支持——向量库成本敏感时先试截断，再考虑换小模型。</p>
+  <p><b>MTEB 榜有过拟合嫌疑</b>：榜单高分不保证你的语料好用。正确姿势：从自己的语料抽 100–200 个「查询 → 应命中文档」对，直接测 recall@k。这个小评估集也是后面所有环节的基础设施。</p>
+</section>
+
+<section id="index">
+  <h2><span class="n">§4</span>索引：HNSW / IVF 与向量库选型</h2>
+  <p>百万级以上向量做精确暴力检索太慢，需要近似最近邻（ANN）索引。两大主流结构：</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 230" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <text x="180" y="24" text-anchor="middle" font-size="13.5" font-weight="800" fill="#b5451f">HNSW：多层近邻图</text>
+      <!-- HNSW layers -->
+      <rect x="40" y="40" width="280" height="40" rx="6" fill="#fff" stroke="#e7e1d6"/>
+      <circle cx="100" cy="60" r="5" fill="#b5451f"/><circle cx="250" cy="60" r="5" fill="#b5451f"/>
+      <line x1="105" y1="60" x2="245" y2="60" stroke="#b5451f" stroke-width="1.2"/>
+      <text x="330" y="64" font-size="10" fill="#5c574f">L2 稀疏长边</text>
+      <rect x="40" y="88" width="280" height="40" rx="6" fill="#fff" stroke="#e7e1d6"/>
+      <circle cx="80" cy="108" r="5" fill="#c97a5e"/><circle cx="170" cy="108" r="5" fill="#c97a5e"/><circle cx="260" cy="108" r="5" fill="#c97a5e"/>
+      <line x1="85" y1="108" x2="165" y2="108" stroke="#c97a5e" stroke-width="1.2"/><line x1="175" y1="108" x2="255" y2="108" stroke="#c97a5e" stroke-width="1.2"/>
+      <text x="330" y="112" font-size="10" fill="#5c574f">L1 中距边</text>
+      <rect x="40" y="136" width="280" height="40" rx="6" fill="#fff" stroke="#e7e1d6"/>
+      <circle cx="65" cy="156" r="5" fill="#e0b8a8"/><circle cx="115" cy="156" r="5" fill="#e0b8a8"/><circle cx="165" cy="156" r="5" fill="#e0b8a8"/><circle cx="215" cy="156" r="5" fill="#e0b8a8"/><circle cx="265" cy="156" r="5" fill="#e0b8a8"/>
+      <line x1="70" y1="156" x2="110" y2="156" stroke="#e0b8a8" stroke-width="1.2"/><line x1="120" y1="156" x2="160" y2="156" stroke="#e0b8a8" stroke-width="1.2"/><line x1="170" y1="156" x2="210" y2="156" stroke="#e0b8a8" stroke-width="1.2"/><line x1="220" y1="156" x2="260" y2="156" stroke="#e0b8a8" stroke-width="1.2"/>
+      <text x="330" y="160" font-size="10" fill="#5c574f">L0 全量近邻</text>
+      <text x="180" y="200" text-anchor="middle" font-size="10.5" fill="#5c574f">从顶层长边快速跳到目标区域，逐层下钻精搜</text>
+      <text x="180" y="216" text-anchor="middle" font-size="10.5" fill="#2f7d43">95%+ recall 开箱即得 · 增量写入友好 · 内存 2–5× IVF</text>
+      <!-- IVF -->
+      <text x="545" y="24" text-anchor="middle" font-size="13.5" font-weight="800" fill="#1f6f6b">IVF：k-means 分桶</text>
+      <rect x="420" y="40" width="250" height="136" rx="6" fill="#fff" stroke="#e7e1d6"/>
+      <path d="M 500 40 L 530 176" stroke="#e7e1d6" stroke-width="1"/>
+      <path d="M 420 110 L 670 90" stroke="#e7e1d6" stroke-width="1"/>
+      <path d="M 590 40 L 610 176" stroke="#e7e1d6" stroke-width="1"/>
+      <circle cx="465" cy="75" r="4" fill="#1f6f6b"/><circle cx="480" cy="90" r="3" fill="#8fbcb9"/><circle cx="450" cy="92" r="3" fill="#8fbcb9"/>
+      <circle cx="560" cy="70" r="4" fill="#1f6f6b"/><circle cx="545" cy="85" r="3" fill="#8fbcb9"/><circle cx="575" cy="88" r="3" fill="#8fbcb9"/>
+      <circle cx="640" cy="65" r="4" fill="#1f6f6b"/><circle cx="650" cy="82" r="3" fill="#8fbcb9"/>
+      <circle cx="470" cy="140" r="4" fill="#1f6f6b"/><circle cx="488" cy="152" r="3" fill="#8fbcb9"/>
+      <circle cx="570" cy="135" r="4" fill="#1f6f6b"/><circle cx="555" cy="150" r="3" fill="#8fbcb9"/><circle cx="585" cy="155" r="3" fill="#8fbcb9"/>
+      <circle cx="645" cy="140" r="4" fill="#1f6f6b"/>
+      <text x="545" y="200" text-anchor="middle" font-size="10.5" fill="#5c574f">查询只扫最近的 nprobe 个桶（Voronoi cell）</text>
+      <text x="545" y="216" text-anchor="middle" font-size="10.5" fill="#a4551a">建索引快 · 省内存 · 数据漂移后 recall 下降需重训</text>
+    </svg>
+    <figcaption>HNSW 用图换内存，IVF 用聚类换重训成本。经验法则：&lt;1000 万向量且有活跃写入选 HNSW；超大且静态语料选 IVF（或磁盘友好的 DiskANN）。</figcaption>
+  </figure>
+  <h3>向量库选型</h3>
+  <table>
+    <tr><th>产品</th><th>定位</th><th>选它当</th></tr>
+    <tr><td><b>FAISS</b></td><td>库，不是服务（无持久化/过滤/多租户）</td><td class="vs">离线实验、算法研究</td></tr>
+    <tr><td><b>pgvector</b></td><td>Postgres 扩展，HNSW/IVFFlat 都支持</td><td class="vs"><b>已有 Postgres 时的默认选择</b>——零新增组件，事务与业务数据同库</td></tr>
+    <tr><td><b>Qdrant</b></td><td>Rust 实现，过滤检索强</td><td class="vs">复杂 metadata 过滤 + 性能敏感</td></tr>
+    <tr><td><b>Milvus</b></td><td>分布式，面向十亿级</td><td class="vs">真正的大规模多租户场景</td></tr>
+    <tr><td><b>Chroma</b></td><td>嵌入式，开发体验优先</td><td class="vs">原型与 demo</td></tr>
+  </table>
+  <p class="sub">本地案例：gbrain 用 PGLite/Postgres + pgvector（HNSW），LightRAG 默认 FAISS + 可插拔 15 种后端——第 5、8 章会看到它们的取舍。</p>
+</section>
+
+<section id="retrieval">
+  <h2><span class="n">§5</span>检索：Dense / Sparse / Hybrid 与 RRF</h2>
+  <p>Dense 和 sparse 的失败模式恰好互补，这是 hybrid 成为生产默认的根本原因：</p>
+  <table>
+    <tr><th></th><th>Dense（向量）</th><th>Sparse（BM25 / SPLADE）</th></tr>
+    <tr><td><b>擅长</b></td><td>同义改写、跨语言、模糊语义（"怎么退货" ↔ "退款流程"）</td><td>精确词面匹配：型号、错误码、函数名、专名（"ERR_4032"、"HNSW"）</td></tr>
+    <tr><td><b>失败</b></td><td>低频专名被稀释；训练分布外的领域词</td><td>同义词完全失配；语序无感</td></tr>
+    <tr><td><b>SPLADE</b></td><td colspan="2">learned sparse：transformer 在词表维度上学出稀疏权重——保持倒排索引的可解释与速度，同时获得语义扩展能力</td></tr>
+  </table>
+  <h3>RRF：不调参的融合</h3>
+  <p>两路检索的打分量纲不可比（余弦相似度 vs BM25 分数），直接加权很脆弱。Reciprocal Rank Fusion 只用<b>排名</b>：</p>
+  <pre><code><span class="cm"># k=60 是标准默认；偏重 top-1 精度可调至 30–40</span>
+<span class="fn">score</span>(d) = Σ<sub>每路检索 i</sub>  1 / (k + rank<sub>i</sub>(d))</code></pre>
+  <p>文档在任一路排名靠前都能获得高融合分，且对单路的异常分数天然免疫。Elasticsearch、Weaviate、Qdrant、Vespa 均已内置。本地案例 gbrain 把 RRF 用到了四路：向量 + BM25 + 图关系遍历 + 源偏置（第 8 章）。</p>
+  <div class="box key">
+    <div class="t"><span class="ic">机制</span>为什么 hybrid 几乎总是赢</div>
+    <p>检索失败大多是「某一类查询在某一路上系统性失败」：全 dense 时错误码查询全军覆没，全 BM25 时口语化查询全军覆没。Hybrid 的收益不是平均分提高几个点，而是<b>砍掉最差情况</b>——这在生产环境里比平均分重要得多。</p>
+  </div>
+</section>
+
+<section id="rerank">
+  <h2><span class="n">§6</span>重排序：Cross-Encoder 与 ColBERT</h2>
+  <p>第一阶段检索（bi-encoder）为了速度把 query 和文档<b>独立</b>编码成单向量，天然损失交互信息。重排序用更贵的模型对 top 50–100 候选做第二阶段精排：</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <!-- bi-encoder -->
+      <text x="120" y="22" text-anchor="middle" font-size="12.5" font-weight="800" fill="#5c574f">Bi-Encoder（一阶段）</text>
+      <rect x="40" y="36" width="70" height="34" rx="6" fill="#fff" stroke="#e7e1d6"/><text x="75" y="57" text-anchor="middle" font-size="11">query</text>
+      <rect x="130" y="36" width="70" height="34" rx="6" fill="#fff" stroke="#e7e1d6"/><text x="165" y="57" text-anchor="middle" font-size="11">doc</text>
+      <rect x="40" y="86" width="70" height="30" rx="6" fill="#efe9df"/><text x="75" y="105" text-anchor="middle" font-size="10.5">1 向量</text>
+      <rect x="130" y="86" width="70" height="30" rx="6" fill="#efe9df"/><text x="165" y="105" text-anchor="middle" font-size="10.5">1 向量</text>
+      <text x="120" y="145" text-anchor="middle" font-size="11.5" fill="#1c1a17">cos(q, d)</text>
+      <text x="120" y="170" text-anchor="middle" font-size="10.5" fill="#2f7d43">毫秒级 · 可预计算索引</text>
+      <text x="120" y="186" text-anchor="middle" font-size="10.5" fill="#a4551a">无 token 级交互</text>
+      <!-- colbert -->
+      <text x="360" y="22" text-anchor="middle" font-size="12.5" font-weight="800" fill="#5b4a8a">ColBERT（late interaction）</text>
+      <rect x="280" y="36" width="70" height="34" rx="6" fill="#fff" stroke="#e7e1d6"/><text x="315" y="57" text-anchor="middle" font-size="11">query</text>
+      <rect x="370" y="36" width="70" height="34" rx="6" fill="#fff" stroke="#e7e1d6"/><text x="405" y="57" text-anchor="middle" font-size="11">doc</text>
+      <rect x="280" y="86" width="70" height="30" rx="6" fill="#f6f4fa" stroke="#5b4a8a"/><text x="315" y="105" text-anchor="middle" font-size="10.5">n 向量/token</text>
+      <rect x="370" y="86" width="70" height="30" rx="6" fill="#f6f4fa" stroke="#5b4a8a"/><text x="405" y="105" text-anchor="middle" font-size="10.5">m 向量/token</text>
+      <text x="360" y="145" text-anchor="middle" font-size="11.5" fill="#1c1a17">Σ maxsim(qᵢ, dⱼ)</text>
+      <text x="360" y="170" text-anchor="middle" font-size="10.5" fill="#2f7d43">p50 ~23ms · token 级匹配</text>
+      <text x="360" y="186" text-anchor="middle" font-size="10.5" fill="#a4551a">多向量存储开销大</text>
+      <!-- cross-encoder -->
+      <text x="600" y="22" text-anchor="middle" font-size="12.5" font-weight="800" fill="#b5451f">Cross-Encoder（重排）</text>
+      <rect x="520" y="36" width="160" height="34" rx="6" fill="#fdf7f2" stroke="#b5451f"/><text x="600" y="57" text-anchor="middle" font-size="11">[query ; doc] 拼接</text>
+      <rect x="520" y="86" width="160" height="30" rx="6" fill="#fdf7f2" stroke="#b5451f"/><text x="600" y="105" text-anchor="middle" font-size="10.5">完整 transformer 交叉注意力</text>
+      <text x="600" y="145" text-anchor="middle" font-size="11.5" fill="#1c1a17">→ 单一相关性分数</text>
+      <text x="600" y="170" text-anchor="middle" font-size="10.5" fill="#2f7d43">精度最高 · nDCG@10 +5–15 点</text>
+      <text x="600" y="186" text-anchor="middle" font-size="10.5" fill="#a4551a">每对都要前向 · 只能排 top-100</text>
+      <text x="360" y="222" text-anchor="middle" font-size="11" fill="#5c574f">交互越晚越快，交互越早越准 —— 三种架构是同一根轴上的三个点</text>
+    </svg>
+    <figcaption>三种打分架构。生产标准组合：bi-encoder（或 hybrid）召回 top-100 → cross-encoder 精排 → top 5–10 进 LLM。</figcaption>
+  </figure>
+  <h3>为什么 Bi-Encoder 有天花板：信息瓶颈</h3>
+  <p>先看清一阶段检索输在哪。双塔把一段 500 token 的文档压进<b>一个</b>定长向量——「文档第 37 个词是否精确匹配了 query 里那个型号」这种 token 级信息在池化时就丢了。且 q 和 d 编码时<b>互相看不见对方</b>：文档向量是「对所有可能查询的平均妥协」，不是针对这个 query 的表示。三种架构的差异本质是一个问题：<b>q 与 d 的交互发生得多早</b>——越早越准，越晚越快。</p>
+
+  <h3>Cross-Encoder：交互发生在每一层 attention</h3>
+  <pre><code>[CLS] query [SEP] document [SEP] → transformer → CLS 向量 → 线性层 → 标量分数</code></pre>
+  <p>从第一层 attention 开始，query 的每个 token 就能和文档的每个 token 直接交互，所以它能捕捉双塔捕捉不到的三类信号：<b>精确匹配感知</b>（"ERR_4032" 直接对上）、<b>否定与条件</b>（「不支持 Windows」vs「支持 Windows」在单向量空间几乎重合）、<b>词序与角色</b>（「A 收购 B」vs「B 收购 A」）。</p>
+  <p><b>训练</b>：MS MARCO 类标注数据上做二分类/回归 + <b>难负例挖掘</b>——负例取 BM25/双塔检回的「像但不对」的文档，逼模型学细粒度区分；现代 reranker（BGE-reranker-v2-m3、Qwen3-Reranker、zerank）普遍再叠 LLM 蒸馏。</p>
+  <p><b>为什么只能做第二阶段</b>：没有任何东西可预计算——100 万文档理论上要跑 100 万次完整前向。所以它的位置永远是：便宜的一阶段召回 top 50–100 → 逐对打分精排 → top 5–10 进 LLM。50–100 次前向共 &lt;200ms，换 nDCG@10 提升 5–15 个点（词面难例 20+），是全管道性价比最高的一段。选型：托管 Cohere Rerank 3.5，自托管 BGE-reranker-v2-m3，两者 benchmark 接近。</p>
+
+  <h3>ColBERT：Late Interaction，交互推迟但不取消</h3>
+  <p>ColBERT（Khattab &amp; Zaharia, SIGIR 2020）的洞察：双塔丢信息是因为<b>池化成单向量</b>，cross-encoder 慢是因为<b>交互发生在编码期</b>——那就把两者拆开：编码独立进行（文档侧可预计算），交互推迟到打分时，但保留 token 粒度。</p>
+  <p><b>离线</b>：文档编码后不池化，每 token 保留一个向量（投影到 128 维省空间），300 token 的文档 = 300×128 矩阵。<b>在线</b>：query 逐 token 编码后用 <b>MaxSim</b> 打分：</p>
+  <pre><code><span class="cm"># query 的每个 token 去文档里找一个最像自己的 token，把最佳匹配分求和</span>
+<span class="fn">score</span>(q, d) = Σ<sub>i</sub>  max<sub>j</sub> ( q<sub>i</sub> · d<sub>j</sub> )</code></pre>
+  <p>直觉："ERR_4032" 这个 token 精确命中文档里的同名 token（拿到接近满分），"退款" 软匹配到 "退货款项"——<b>精确匹配和语义匹配在同一个机制里自然共存</b>，这是它在标识符密集查询上常反超 cross-encoder 的原因。</p>
+  <p><b>代价与解法</b>：每文档从 1 个向量变成几百个，v1 索引大到不实用。<b>ColBERTv2</b> 用残差压缩解决——token 向量聚类后只存「最近质心 ID + 低比特量化残差」，索引缩小约一个数量级；配套 <b>PLAID</b> 引擎用质心剪枝，使它可直接当第一阶段检索器（不只是 reranker），延迟压到几十毫秒。</p>
+
+  <h3>三者对照</h3>
+  <table>
+    <tr><th></th><th>Bi-Encoder</th><th>ColBERT（late interaction）</th><th>Cross-Encoder</th></tr>
+    <tr><td><b>交互发生在</b></td><td>从不（各编各的）</td><td>打分时，token 级 MaxSim</td><td>编码期，每层 attention</td></tr>
+    <tr><td><b>文档侧可预计算</b></td><td class="good">✅ 1 向量</td><td class="good">✅ n 向量（压缩后）</td><td class="bad">❌ 完全不能</td></tr>
+    <tr><td><b>单 query 成本</b></td><td>1 次编码 + ANN</td><td>1 次编码 + MaxSim（可索引加速）</td><td>k 次完整前向</td></tr>
+    <tr><td><b>精度</b></td><td class="vs">基线</td><td class="mid">接近 cross-encoder</td><td class="good">最高</td></tr>
+    <tr><td><b>存储</b></td><td>1×</td><td class="vs">压缩后约 5–10×</td><td>0（无索引）</td></tr>
+    <tr><td><b>典型角色</b></td><td>一阶段召回</td><td>一阶段检索或轻量精排</td><td>top-100 精排</td></tr>
+  </table>
+  <div class="box key">
+    <div class="t"><span class="ic">记忆</span>一句话区分</div>
+    <p>双塔是「先总结再比较」，ColBERT 是「先记笔记、比较时逐条对」，cross-encoder 是「把两篇放一起从头精读」。</p>
+  </div>
+
+  <h3>两个延伸</h3>
+  <ul>
+    <li><b>ColPali</b>（第 3、7 章）就是把 late interaction 原封搬到视觉上：页面截图 → VLM 编码成 patch 网格多向量，query token 对 patch 做 MaxSim——「多向量 + MaxSim」是可迁移模式，不绑定文本。</li>
+    <li><b>LLM-as-reranker</b>（RankGPT 一类）是 cross-encoder 的当代变体：直接让 LLM 对候选做 pointwise 打分或 listwise 排序。更灵活（可加指令如「优先最新版本文档」），但延迟成本高一截，适合离线评估或低 QPS 高价值场景。</li>
+  </ul>
+  <p class="sub">实践选择：默认 hybrid 召回 + cross-encoder 精排（§9 清单）；cross-encoder p99 扛不住或查询全是代码符号/型号时考虑 ColBERT；两阶段都上不起就先保证 hybrid + RRF。</p>
+</section>
+
+<section id="query">
+  <h2><span class="n">§7</span>查询变换：修 query 而不是修索引</h2>
+  <p>前面各环节都在索引侧下功夫；查询变换在查询侧解决「用户的问题不是好的检索键」：</p>
+  <table>
+    <tr><th>技术</th><th>机制</th><th>解决的失败模式</th></tr>
+    <tr><td><b>HyDE</b><br><span class="anchor-note">arXiv:2212.10496</span></td><td>LLM 先生成「假设答案文档」，拿它去 embed 检索</td><td class="vs">query-doc 语义鸿沟：疑问句和陈述句在向量空间里不够近，doc-doc 相似度更可靠</td></tr>
+    <tr><td><b>Multi-query</b></td><td>一问改写成多问，并行检索取并集</td><td class="vs">单一表述踩不中语料的用词分布</td></tr>
+    <tr><td><b>Decomposition</b></td><td>复杂问题拆成子问题逐个检索</td><td class="vs">多跳问题一次检索拿不全证据（图 RAG 之外的轻量解法）</td></tr>
+    <tr><td><b>Step-back</b><br><span class="anchor-note">arXiv:2310.06117</span></td><td>先抽象成上位概念问题检索背景知识</td><td class="vs">过于具体的问题命中不了讲原理的文档</td></tr>
+  </table>
+  <p class="sub">实证提醒：ARAGOG 评测（arXiv:2404.01037）显示这些技巧的收益高度依赖数据集——每个都要在自己的评估集上验证后再上线，它们同时都会增加一次 LLM 调用的延迟。</p>
+</section>
+
+<section id="eval">
+  <h2><span class="n">§8</span>评估：没有评估集，一切都是猜</h2>
+  <p>评估分两层：<b>检索质量</b>（素材有没有拿对）和<b>生成质量</b>(答案有没有用对素材)。</p>
+  <h3>检索指标</h3>
+  <table>
+    <tr><th>指标</th><th>含义</th><th>什么时候看它</th></tr>
+    <tr><td><b>recall@k</b></td><td>前 k 条里覆盖了多少应命中文档</td><td class="vs"><b>最重要</b>——答案素材没进上下文，后面全白搭。调 chunking/embedding/hybrid 主要看它</td></tr>
+    <tr><td><b>MRR</b></td><td>第一条相关结果排名的倒数</td><td class="vs">top-1 体验敏感的场景（如引用展示）</td></tr>
+    <tr><td><b>nDCG@k</b></td><td>分级相关性 + 位置折扣</td><td class="vs">调重排序时的标准指标</td></tr>
+  </table>
+  <h3>RAGAS 四指标（LLM-as-judge）</h3>
+  <div class="two">
+    <div class="mini"><div class="h">考检索的两个</div><p><b>context precision</b>：相关块是否排在前面；<b>context recall</b>：ground truth 的信息被检索上下文覆盖的比例。</p></div>
+    <div class="mini"><div class="h">考生成的两个</div><p><b>faithfulness</b>：答案与检索上下文的事实一致性（反幻觉核心指标）；<b>answer relevancy</b>：答非所问检测。</p></div>
+  </div>
+  <div class="box warn">
+    <div class="t"><span class="ic">警告</span>LLM-as-judge 的坑</div>
+    <p>win-rate 式评测存在长度偏置和位置偏置（可达 5–15 个百分点）。第 5 章会看到一个惨烈案例：LightRAG 用 win-rate 报告大胜，而第三方用标准 QA F1 复测时它在 HotpotQA 上只有 2.4 分。<b>凡是 win-rate 数字，先问评测方式。</b></p>
+  </div>
+</section>
+
+<section id="checklist">
+  <h2><span class="n">§9</span>生产配置清单</h2>
+  <p>把本章压缩成一张可以直接抄的默认配置表——每一项都可被你的评估集推翻：</p>
+  <table>
+    <tr><th>环节</th><th>起手默认</th><th>升级触发条件</th></tr>
+    <tr><td>解析</td><td>见第 3 章决策树</td><td class="vs">—</td></tr>
+    <tr><td>Chunking</td><td>recursive 512 token · 10% overlap · 标题元数据</td><td class="vs">recall 低且失败案例是「语境断裂」→ contextual retrieval</td></tr>
+    <tr><td>Embedding</td><td>中文选 Qwen3/BGE-M3，API 生态选 OpenAI v3</td><td class="vs">自建 100 对评估集测 recall@10 后再换</td></tr>
+    <tr><td>索引</td><td>pgvector HNSW（已有 PG）或 Qdrant</td><td class="vs">&gt;1000 万向量或静态大语料 → IVF/DiskANN</td></tr>
+    <tr><td>检索</td><td>hybrid（dense + BM25）+ RRF k=60，召回 top-50</td><td class="vs">几乎不需要改，这就是终点配置</td></tr>
+    <tr><td>重排</td><td>BGE-reranker-v2-m3 或 Cohere，取 top-5</td><td class="vs">延迟敏感 → ColBERT；预算紧 → 先砍这里以外的 LLM 调用</td></tr>
+    <tr><td>查询变换</td><td>先不加</td><td class="vs">评估集出现明确的鸿沟/多跳失败模式再逐个加</td></tr>
+    <tr><td>评估</td><td>100–200 对人工评估集 + recall@k；上线后 RAGAS 抽样监控</td><td class="vs">—</td></tr>
+  </table>
+  <p>当这套管道仍解决不了的失败模式出现时——多跳关联（→ 第 4、5 章图方案）、超长专业文档（→ 第 6 章树方案）、图表扫描件（→ 第 3 章视觉路线）——才是升级架构的时机。</p>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§10</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">Chunking 策略实证对比</span> — <a href="https://www.firecrawl.dev/blog/best-chunking-strategies-rag">Firecrawl: Best Chunking Strategies for RAG</a>（含 NAACL 2025 Findings 固定分块结论）；<a href="https://langcopilot.com/posts/2025-10-11-document-chunking-for-rag-practical-guide">LangCopilot: Document Chunking Practical Guide</a>（含 Vecta 2026.02 七策略基准）</li>
+    <li><span class="rt">Late Chunking</span> — Günther et al. (Jina AI). <a href="https://arxiv.org/abs/2409.04701">arxiv.org/abs/2409.04701</a></li>
+    <li><span class="rt">Contextual Retrieval</span> — Anthropic Engineering（−49% / −67% 检索失败率数字来源）. <a href="https://www.anthropic.com/engineering/contextual-retrieval">anthropic.com/engineering/contextual-retrieval</a></li>
+    <li><span class="rt">Markdown-aware chunking 实证（+5–10pp）</span> — <a href="https://www.snowflake.com/en/blog/engineering/impact-retrieval-chunking-finance-rag/">Snowflake: Impact of Retrieval Chunking in Finance RAG</a></li>
+    <li><span class="rt">Qwen3-Embedding（MTEB 70.58）</span> — <a href="https://qwenlm.github.io/blog/qwen3-embedding/">qwenlm.github.io/blog/qwen3-embedding</a>；<span class="rt">embedding 选型综述</span> — <a href="https://app.ailog.fr/en/blog/guides/choosing-embedding-models">AILog: Choosing Embedding Models</a></li>
+    <li><span class="rt">HNSW vs IVF</span> — <a href="https://bigdataboutique.com/blog/hnsw-vs-ivfflat-how-to-choose-the-right-vector-index">BigData Boutique: HNSW vs IVFFlat</a>；<span class="rt">向量库对比</span> — <a href="https://www.firecrawl.dev/blog/best-vector-databases">Firecrawl: Best Vector Databases</a></li>
+    <li><span class="rt">Hybrid 检索与 RRF</span> — <a href="https://weaviate.io/blog/hybrid-search-explained">Weaviate: Hybrid Search Explained</a>；<a href="https://bigdataboutique.com/blog/hybrid-search-explained">BigData Boutique: Hybrid Search</a></li>
+    <li><span class="rt">重排序（nDCG@10 +5–15 点）</span> — <a href="https://bigdataboutique.com/blog/rag-reranking-improving-retrieval-quality-with-cross-encoders">BigData Boutique: RAG Reranking with Cross-Encoders</a>；<a href="https://futureagi.com/blog/best-rerankers-for-rag-2026/">FutureAGI: Best Rerankers for RAG 2026</a>（含 ColBERT p50 ~23ms 延迟数据）</li>
+    <li><span class="rt">ColBERT</span> — Khattab &amp; Zaharia, SIGIR 2020. <a href="https://arxiv.org/abs/2004.12832">arxiv.org/abs/2004.12832</a>；<span class="rt">ColBERTv2（残差压缩）</span> — <a href="https://arxiv.org/abs/2112.01488">arxiv.org/abs/2112.01488</a>；<span class="rt">PLAID 检索引擎</span> — <a href="https://arxiv.org/abs/2205.09707">arxiv.org/abs/2205.09707</a></li>
+    <li><span class="rt">LLM-as-reranker（RankGPT）</span> — Sun et al., EMNLP 2023. <a href="https://arxiv.org/abs/2304.09542">arxiv.org/abs/2304.09542</a></li>
+    <li><span class="rt">HyDE</span> — <a href="https://arxiv.org/abs/2212.10496">arxiv.org/abs/2212.10496</a>（解读：<a href="https://www.emergentmind.com/topics/hypothetical-document-embeddings-hyde">EmergentMind</a>）；<span class="rt">Step-back</span> — <a href="https://arxiv.org/abs/2310.06117">arxiv.org/abs/2310.06117</a>；<span class="rt">ARAGOG 技巧实证评测</span> — <a href="https://arxiv.org/abs/2404.01037">arxiv.org/abs/2404.01037</a></li>
+    <li><span class="rt">检索评估指标</span> — <a href="https://weaviate.io/blog/retrieval-evaluation-metrics">Weaviate: Retrieval Evaluation Metrics</a></li>
+    <li><span class="rt">RAGAS 四指标</span> — <a href="https://docs.ragas.io/en/v0.1.21/concepts/metrics/">docs.ragas.io</a>；<a href="https://www.confident-ai.com/blog/rag-evaluation-metrics-answer-relevancy-faithfulness-and-more">Confident AI: RAG Evaluation Metrics</a></li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="01-history.html"><span class="lbl">← 上一页</span><div class="ti">RAG 演进史</div></a>
+  <a href="03-parsing.html" class="next"><span class="lbl">下一页 →</span><div class="ti">文档解析与 OCR</div></a>
+</div>
+<footer>knowledge-base-learning · 基于本地仓库与公开资料整理 · 2026-07</footer>
+</main>
+</div>
+</body>
+</html>

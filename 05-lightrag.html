@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>05 · LightRAG 精读 —— 砍掉社区检测的轻量图 RAG · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#idea">设计动机与架构</a></li>
+    <li><a href="#index">索引流水线</a></li>
+    <li><a href="#merge">Map-Reduce 描述摘要</a></li>
+    <li><a href="#query">双层检索与 5 种模式</a></li>
+    <li><a href="#storage">存储抽象：15+ 后端</a></li>
+    <li><a href="#prompt">Prompt 工程细节</a></li>
+    <li><a href="#vs">对比 GraphRAG 与评测争议</a></li>
+    <li><a href="#files">仓库导航</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html" class="cur">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 05 · Code Reading · ../LightRAG</div>
+  <h1>LightRAG 精读：砍掉社区检测之后剩下什么</h1>
+  <p class="lead">GraphRAG 的社区摘要太贵，LightRAG 的回答是：不建社区，用「双层关键词 → 实体/关系两个向量库」替代。本章读通它的索引、检索与存储设计，最后直面它极具争议的评测数字。</p>
+  <div class="pills">
+    <span class="pill">论文 <b>arXiv:2410.05779</b></span>
+    <span class="pill">本地 <b>../LightRAG</b></span>
+    <span class="pill">核心 <b>KG + 向量双层</b></span>
+    <span class="pill">规模 <b>operate.py ≈6000 行</b></span>
+  </div>
+</header>
+
+<section id="idea">
+  <h2><span class="n">§1</span>设计动机与架构</h2>
+  <p>LightRAG（HKUDS，EMNLP 2025，25k+ stars）站在两个不满上：向量 RAG 的<b>上下文碎片化</b>（同一主题散布多个 chunk，复杂推理拿不全），GraphRAG 的<b>社区检测 + 分层摘要成本</b>（第 4 章 §6）。它的取舍：</p>
+  <ul>
+    <li><b>保留</b>实体/关系抽取——图结构照建；</li>
+    <li><b>砍掉</b>Leiden 社区检测与全部社区报告；</li>
+    <li><b>替代品</b>：把实体描述和关系描述分别向量化成两个向量库（<code>entities_vdb</code> / <code>relationships_vdb</code>），查询时用 LLM 抽「双层关键词」分别检索。</li>
+  </ul>
+  <p>论文给出的成本对比：GraphRAG Global Search 单次查询要处理约 61 万 token（社区遍历），LightRAG 的关键词开销 <b>&lt;100 token</b>；同批文档索引成本 <b>$0.15 vs $4–7</b>；增量更新直接对图做并集（union），不需要重建任何全局结构。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="ar7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
+      <text x="180" y="24" text-anchor="middle" font-size="13" font-weight="800" fill="#5c574f">GraphRAG 的全局层</text>
+      <rect x="40" y="40" width="280" height="54" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="180" y="62" text-anchor="middle" font-size="11.5">Leiden 社区检测 + 逐层社区报告</text>
+      <text x="180" y="80" text-anchor="middle" font-size="10.5" fill="#a4551a">索引期 LLM 密集 · 增量更新触发重建</text>
+      <line x1="180" y1="96" x2="180" y2="120" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar7)"/>
+      <rect x="40" y="124" width="280" height="54" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="180" y="146" text-anchor="middle" font-size="11.5">Global Search：Map-Reduce 遍历报告</text>
+      <text x="180" y="164" text-anchor="middle" font-size="10.5" fill="#a4551a">~61 万 token / 次查询</text>
+
+      <text x="540" y="24" text-anchor="middle" font-size="13" font-weight="800" fill="#1f6f6b">LightRAG 的替代</text>
+      <rect x="400" y="40" width="280" height="54" rx="9" fill="#f2f8f7" stroke="#1f6f6b"/>
+      <text x="540" y="62" text-anchor="middle" font-size="11.5">实体描述 → entities_vdb（向量库）</text>
+      <text x="540" y="80" text-anchor="middle" font-size="11.5">关系描述+关键词 → relationships_vdb</text>
+      <line x1="540" y1="96" x2="540" y2="120" stroke="#1f6f6b" stroke-width="1.4" marker-end="url(#ar7)"/>
+      <rect x="400" y="124" width="280" height="54" rx="9" fill="#f2f8f7" stroke="#1f6f6b"/>
+      <text x="540" y="146" text-anchor="middle" font-size="11.5">查询：LLM 抽双层关键词 → 两库各查 top-k</text>
+      <text x="540" y="164" text-anchor="middle" font-size="10.5" fill="#2f7d43">&lt;100 token 关键词开销 + 向量检索</text>
+      <text x="360" y="215" text-anchor="middle" font-size="11.5" fill="#5c574f">同一个目标（回答全局/关联问题），两种成本结构：预计算摘要 vs 检索期组装</text>
+    </svg>
+    <figcaption>LightRAG 用「关系向量库 + 高层关键词」近似 GraphRAG 的全局能力。代价在 §7 讨论。</figcaption>
+  </figure>
+</section>
+
+<section id="index">
+  <h2><span class="n">§2</span>索引流水线</h2>
+  <div class="flow">
+    <div class="step"><div class="dot">1</div><div class="body"><b>解析 &amp; 分块</b><div class="d">解析支持 MinerU/Docling 多模态后端（<span class="fnm">lightrag/parser/native_dispatch.py</span>）；分块 4 种策略可选（<span class="fnm">lightrag/chunker/</span>：token_size / recursive_character / semantic_vector / paragraph_semantic）</div></div></div>
+    <div class="step"><div class="dot">2</div><div class="body"><b>实体/关系抽取</b> <span class="fnm">extract_entities() operate.py:3320</span><div class="d">带 Section Context 标题面包屑；默认分隔符文本输出（可切 JSON 模式）；gleaning 补抽 ≤1 轮；防爆限制：单 chunk 最多 100 条记录 / 40 个实体、输入 ≤20480 token</div></div></div>
+    <div class="step"><div class="dot">3</div><div class="body"><b>去重合并</b> <span class="fnm">merge_nodes_and_edges() operate.py:2914</span><div class="d">同名实体跨 chunk 合并（<span class="fnm">_merge_nodes_then_upsert L2000</span>）；关系按 (src,tgt) 合并、权重累加（<span class="fnm">_merge_edges_then_upsert L2329</span>）；描述聚合走 §3 的 Map-Reduce</div></div></div>
+    <div class="step"><div class="dot">4</div><div class="body"><b>三路存储</b><div class="d">图（实体+边）→ GraphStorage；实体/关系描述向量 → 两个 VectorStorage；chunk 原文 + 反向映射（entity→chunks）→ KVStorage</div></div></div>
+  </div>
+  <p>抽取输出格式与 GraphRAG 同源（分隔符记录流），但做了两处安全加固值得注意：分隔符用 <code>&lt;|#|&gt;</code>、完成信号 <code>&lt;|COMPLETE|&gt;</code> 这类不会被 LLM 误碰的完整标记；标题面包屑被显式声明为「不可信元数据，只作消歧背景，禁止从中抽实体」——防 prompt 注入的实践。</p>
+</section>
+
+<section id="merge">
+  <h2><span class="n">§3</span>Map-Reduce 描述摘要：按需触发的成本控制</h2>
+  <p>同一实体在 50 个 chunk 里各有一句描述，怎么合成一条？LightRAG 的答案是<b>分级处理</b>——便宜路径优先，LLM 只在必要时介入：</p>
+  <pre><code><span class="src">lightrag/operate.py:265-407 （_handle_entity_relation_summary，节选简化）</span><span class="kw">if</span> <span class="fn">len</span>(description_list) == <span class="nm">1</span>:
+    <span class="kw">return</span> description_list[<span class="nm">0</span>], <span class="kw">False</span>          <span class="cm"># 单条：直接用</span>
+
+<span class="kw">while</span> <span class="kw">True</span>:
+    total_tokens = <span class="fn">sum</span>(<span class="fn">len</span>(tokenizer.encode(d)) <span class="kw">for</span> d <span class="kw">in</span> current_list)
+    <span class="kw">if</span> total_tokens &lt;= summary_context_size <span class="kw">or</span> <span class="fn">len</span>(current_list) &lt;= <span class="nm">2</span>:
+        <span class="kw">if</span> <span class="fn">len</span>(current_list) &lt; force_llm_summary_on_merge \
+           <span class="kw">and</span> total_tokens &lt; summary_max_tokens:      <span class="cm"># 少而短：拼接即可</span>
+            <span class="kw">return</span> separator.join(current_list), llm_was_used
+        <span class="kw">return</span> <span class="kw">await</span> _summarize_descriptions(...), <span class="kw">True</span>  <span class="cm"># LLM 收尾</span>
+    <span class="cm"># Map：按 summary_context_size(12000 token) 拆桶</span>
+    chunks = split_by_token_budget(current_list)
+    <span class="cm"># Reduce：每桶一次 LLM 摘要（单条桶跳过），迭代直到收敛 ≤600 token</span>
+    current_list = [<span class="kw">await</span> _summarize_descriptions(c) <span class="kw">if</span> <span class="fn">len</span>(c) &gt; <span class="nm">1</span> <span class="kw">else</span> c[<span class="nm">0</span>]
+                    <span class="kw">for</span> c <span class="kw">in</span> chunks]</code></pre>
+  <p>阈值：总 token &lt; 1200 且条数 &lt; 8 时直接 <code>&lt;SEP&gt;</code> 拼接，零 LLM；否则 Map-Reduce 递归到 ≤600 token，且结果进 LLM 缓存避免重复。对照 GraphRAG「描述摘要占索引成本 10–15%」，这套惰性策略是 LightRAG 便宜的第二个原因（第一个是没有社区报告）。</p>
+</section>
+
+<section id="query">
+  <h2><span class="n">§4</span>双层检索与 5 种查询模式</h2>
+  <h3>第一步：双层关键词抽取</h3>
+  <p>查询进来先过一次 LLM（<span class="anchor-note">get_keywords_from_query() operate.py:4001</span>），输出 JSON 两组关键词，各自驱动一路检索：</p>
+  <div class="two">
+    <div class="mini"><div class="h">Low-level keywords（具体实体）</div><p>"Tesla"、"4680 电池" → 查 <code>entities_vdb</code>，命中实体节点后取邻接关系与来源 chunk。<b>服务细节型问题。</b></p></div>
+    <div class="mini"><div class="h">High-level keywords（抽象主题）</div><p>"供应链风险"、"技术路线之争" → 查 <code>relationships_vdb</code>，命中关系后展开两端实体形成多跳子图。<b>近似 GraphRAG 的全局能力。</b></p></div>
+  </div>
+  <h3>5 种模式（QueryParam，base.py:82）</h3>
+  <table>
+    <tr><th>mode</th><th>检索路径</th><th>适用</th></tr>
+    <tr><td><code>local</code></td><td>LL 关键词 → 实体库 → 邻接展开</td><td class="vs">具体对象的事实问题</td></tr>
+    <tr><td><code>global</code></td><td>HL 关键词 → 关系库 → 关系链子图</td><td class="vs">跨文档关联、主题问题</td></tr>
+    <tr><td><code>hybrid</code></td><td>local + global 并行合并</td><td class="vs">兼顾两者</td></tr>
+    <tr><td><code>naive</code></td><td>纯 chunk 向量检索（无图）</td><td class="vs">对照组 / 快速查询</td></tr>
+    <tr><td><code>mix</code>（默认）</td><td>local + global + naive 三路并行 + 可选 rerank</td><td class="vs"><b>生产默认</b></td></tr>
+  </table>
+  <h3>4 阶段查询架构</h3>
+  <p>所有模式共用一条查询骨架（<span class="anchor-note">_build_query_context() operate.py:5024</span>）：</p>
+  <div class="flow">
+    <div class="step"><div class="dot">1</div><div class="body"><b>_perform_kg_search</b> — 纯搜索<div class="d">按 mode 取候选实体/关系/chunk，缓存查询 embedding 复用</div></div></div>
+    <div class="step"><div class="dot">2</div><div class="body"><b>_apply_token_truncation</b> — token 预算截断<div class="d">默认预算：实体 6000 / 关系 8000 / 总计 30000（top_k=40, chunk_top_k=20）</div></div></div>
+    <div class="step"><div class="dot">3</div><div class="body"><b>_merge_all_chunks</b> — 回源合并<div class="d">从命中的实体/关系回溯到来源 chunk（靠 entity_chunks 反向映射），去重排序</div></div></div>
+    <div class="step"><div class="dot">4</div><div class="body"><b>_build_context_str</b> — 格式化<div class="d">输出 markdown 上下文：KG Entities / KG Relationships / Document Chunks / Reference List，带可溯源引用编号</div></div></div>
+  </div>
+  <p class="sub">对比第 4 章：GraphRAG 的 local search 也是「实体匹配→邻接展开」，两者的 local 模式几乎同构；真正的分歧在 global——预计算社区报告 vs 检索期关系子图组装。</p>
+</section>
+
+<section id="storage">
+  <h2><span class="n">§5</span>存储抽象：三接口 × 15+ 后端</h2>
+  <p>LightRAG 把所有持久化收敛到三个抽象接口（<code>base.py</code>），工厂动态加载（<code>kg/factory.py</code>），环境变量切换：</p>
+  <table>
+    <tr><th>接口</th><th>职责</th><th>实现举例</th></tr>
+    <tr><td><b>BaseKVStorage</b><br><span class="anchor-note">base.py:383</span></td><td>chunk 原文、LLM 缓存、实体↔chunk 反向映射、文档状态</td><td class="vs">JSON 文件 / Redis / MongoDB / Postgres</td></tr>
+    <tr><td><b>BaseVectorStorage</b><br><span class="anchor-note">base.py:220</span></td><td>实体、关系、chunk 三个向量集合；支持传入预计算 embedding 命中缓存</td><td class="vs">FAISS(默认) / Milvus / Qdrant / PGVector / OpenSearch</td></tr>
+    <tr><td><b>BaseGraphStorage</b><br><span class="anchor-note">base.py:446</span></td><td>图结构：upsert_edge、get_nodes_batch、node_degrees_batch、get_neighbors_batch</td><td class="vs">NetworkX(默认，内存) / Neo4j / Memgraph / Postgres</td></tr>
+  </table>
+  <p>推荐组合：开发用 <code>JSON + FAISS + NetworkX</code>（零配置）；生产用 <code>Postgres 一体化</code>（KV+向量+图同库）或 <code>PG + Milvus + Neo4j</code>。两个工程细节值得注意：</p>
+  <ul>
+    <li><b>按实体粒度上锁</b>（<code>kg/shared_storage.py</code> 的 <code>get_storage_keyed_lock(entity_name)</code>，TTL 300s）——多进程并发插入时防止同一实体的 merge 冲突，比全局锁细得多；</li>
+    <li><b>实体名双限截断</b>（<code>_truncate_entity_identifier() operate.py:120</code>）：≤256 字符且 ≤512 UTF-8 字节——为 Milvus VARCHAR 兼容；中文实体名实际只有约 170 字的空间，跨后端开发时容易踩。</li>
+  </ul>
+</section>
+
+<section id="prompt">
+  <h2><span class="n">§6</span>Prompt 工程细节（prompt.py）</h2>
+  <ul>
+    <li><b>抽取 system prompt</b>（L54）：11 种预定义实体类型；关系默认<b>无向</b>除非显式说明；输出语言参数化 <code>{language}</code>，专名保留原文——多语言知识库的关键设定。</li>
+    <li><b>Gleaning prompt</b>（L143）与 GraphRAG 不同：要求「只补漏 + 纠错，不重复已正确抽取的」，减少重复输出的 token 浪费。</li>
+    <li><b>回答 prompt</b>（rag_response, L334）：只准用提供的 context、自己的知识仅用于组织语言；必须追踪 reference_id 生成引用；答不了要明说——反幻觉三件套。</li>
+    <li><b>模板隔离</b>：明确声明「Output Format Template 区域不是源文本，禁止从中抽实体」——LLM 会把 few-shot 示例里的实体抽出来，这条规则针对的就是这个真实 bug。</li>
+  </ul>
+</section>
+
+<section id="vs">
+  <h2><span class="n">§7</span>对比 GraphRAG 与评测争议</h2>
+  <h3>省了什么，代价是什么</h3>
+  <table>
+    <tr><th>维度</th><th>GraphRAG</th><th>LightRAG</th></tr>
+    <tr><td>全局话题聚合</td><td class="good">社区报告显式承载</td><td class="bad">无——靠 HL 关键词命中关系，隐藏主题不会自己浮现</td></tr>
+    <tr><td>索引成本</td><td class="bad">高（gleaning 75% + 报告）</td><td class="good">论文声称 3–5× 低</td></tr>
+    <tr><td>查询延迟</td><td class="bad">Global &gt;5s</td><td class="good">&lt;1s（论文口径）</td></tr>
+    <tr><td>增量更新</td><td class="bad">社区可能重组</td><td class="good">图 union + 只重摘要受影响实体</td></tr>
+    <tr><td>关键依赖</td><td class="vs">社区质量（Leiden 参数）</td><td class="vs"><b>关键词抽取质量</b>——抽不准则整条链路失效（可手动 override 关键词兜底）</td></tr>
+    <tr><td>共同软肋</td><td colspan="2" class="vs">实体命名一致性："Alice Smith" 与 "A. Smith" 被视为两个实体时，图就碎了。两者都没有内建实体消歧。</td></tr>
+  </table>
+
+  <div class="box warn">
+    <div class="t"><span class="ic">争议</span>同一方法，跨论文分数差 40 倍</div>
+    <p>LightRAG 论文用 LLM-as-judge win-rate 报告大胜（Legal 数据集 comprehensiveness 胜率 84.8%）。但 HippoRAG 2 论文在标准 multi-hop QA 上实测它：<b>MuSiQue F1 1.6、HotpotQA 2.4、2Wiki 11.6</b>——远低于 naive RAG，归因为「用 LLM 生成的摘要替代原文作为检索语料引入噪声」。而 GRASP 论文里它又是最强基线（HotpotQA F1 0.819）。HippoRAG 仓库 issue #135 专门讨论了这种不一致。<b>教训：graph RAG 领域基线配置敏感、评测缺乏标准化；工程决策必须建立在自己语料的评估集上，而不是任何论文的表格上。</b></p>
+  </div>
+</section>
+
+<section id="files">
+  <h2><span class="n">§8</span>仓库导航</h2>
+  <div class="filemap">
+    <div class="f"><span class="p">lightrag/lightrag.py（4469 行）</span><span class="d">主类 + API 入口，insert/query 的编排层</span></div>
+    <div class="f"><span class="p">lightrag/operate.py（5995 行）</span><span class="d">核心业务逻辑：抽取、合并、5 种查询——本章 80% 的内容在这个文件</span></div>
+    <div class="f"><span class="p">lightrag/prompt.py</span><span class="d">全部 prompt 注册（§6）</span></div>
+    <div class="f"><span class="p">lightrag/base.py</span><span class="d">三大存储接口 + QueryParam 定义</span></div>
+    <div class="f"><span class="p">lightrag/kg/（15+ 实现）</span><span class="d">networkx / neo4j / milvus / postgres… + shared_storage.py 锁机制</span></div>
+    <div class="f"><span class="p">lightrag/chunker/ 与 parser/</span><span class="d">4 种分块策略；MinerU/Docling 解析集成</span></div>
+    <div class="f"><span class="p">lightrag/api/ + lightrag_webui/</span><span class="d">FastAPI 服务器 + React WebUI（可视化图谱）</span></div>
+    <div class="f"><span class="p">lightrag/evaluation/</span><span class="d">RAGAS 评估套件 + Langfuse 追踪集成</span></div>
+  </div>
+  <div class="box tip">
+    <div class="t"><span class="ic">读码</span>建议阅读顺序</div>
+    <p>① base.py 的 QueryParam 理解参数空间 → ② get_keywords_from_query 看双层检索的入口 → ③ _handle_entity_relation_summary 的 Map-Reduce → ④ _build_query_context 的 4 阶段 → ⑤ 挑一个 kg/ 后端实现看接口如何落地。相比 GraphRAG 的多包拆分，LightRAG 是「两个大文件 + 插件目录」的单体结构——初读更快，但 operate.py 内部耦合也更重。</p>
+  </div>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§9</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">LightRAG 论文（EMNLP 2025）</span> — Guo et al., "LightRAG: Simple and Fast Retrieval-Augmented Generation". <a href="https://arxiv.org/abs/2410.05779">arxiv.org/abs/2410.05779</a>；项目页：<a href="https://lightrag.github.io/">lightrag.github.io</a></li>
+    <li><span class="rt">代码与行号</span> — 本地检出 <code>../LightRAG</code>（2026-07）；上游：<a href="https://github.com/HKUDS/LightRAG">github.com/HKUDS/LightRAG</a>（成本对比 $0.15 vs $4–7、61 万 token vs &lt;100 token、win-rate 84.8% 均为论文口径）</li>
+    <li><span class="rt">第三方复测（MuSiQue F1 1.6 / HotpotQA 2.4）</span> — HippoRAG 2 论文表 2. <a href="https://arxiv.org/abs/2502.14802">arxiv.org/abs/2502.14802</a></li>
+    <li><span class="rt">相反证据（HotpotQA F1 0.819 最强基线）</span> — GRASP 论文. <a href="https://arxiv.org/abs/2605.16598">arxiv.org/abs/2605.16598</a></li>
+    <li><span class="rt">跨论文分数不一致的讨论</span> — <a href="https://github.com/OSU-NLP-Group/HippoRAG/issues/135">HippoRAG Issue #135</a></li>
+    <li><span class="rt">图 RAG 统一评测框架（基线敏感性）</span> — "In-depth Analysis of Graph-based RAG in a Unified Framework". <a href="https://arxiv.org/abs/2503.04338">arxiv.org/abs/2503.04338</a></li>
+    <li><span class="rt">LLM-as-judge 偏置问题</span> — 见第 2 章 §8 与 RAGAS 文档；长度/位置偏置综述散见各评测论文</li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="04-graphrag.html"><span class="lbl">← 上一页</span><div class="ti">GraphRAG 精读</div></a>
+  <a href="06-pageindex.html" class="next"><span class="lbl">下一页 →</span><div class="ti">PageIndex 精读</div></a>
+</div>
+<footer>knowledge-base-learning · 代码行号基于本地 ../LightRAG 检出（2026-07） · 版本更新后行号可能漂移</footer>
+</main>
+</div>
+</body>
+</html>

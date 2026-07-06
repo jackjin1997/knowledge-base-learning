@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>03 · 文档解析与 OCR —— RAG 的第一公里 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#why">为什么解析是质量瓶颈</a></li>
+    <li><a href="#pipeline">管线式方案</a></li>
+    <li><a href="#vlm">端到端 VLM 浪潮</a></li>
+    <li><a href="#bench">OmniDocBench：统一标尺</a></li>
+    <li><a href="#hard">表格 / 公式 / 阅读顺序</a></li>
+    <li><a href="#api">商业 API</a></li>
+    <li><a href="#decide">选型决策树</a></li>
+    <li><a href="#rag">与 RAG 的衔接 + ColPali 对照</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html" class="cur">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 03 · Document Parsing &amp; OCR</div>
+  <h1>文档解析与 OCR：RAG 的第一公里</h1>
+  <p class="lead">改进解析带来的收益，常常大于换一个更强的 LLM。本章讲清 PDF 为什么难、管线派与 VLM 派的机制差异、以及 2024–2026 最重要的格局变化：1B 级专用视觉模型全面超越管线方案。</p>
+  <div class="pills">
+    <span class="pill">管线派 <b>MinerU / Docling</b></span>
+    <span class="pill">VLM 派 <b>olmOCR / dots.ocr</b></span>
+    <span class="pill">标尺 <b>OmniDocBench</b></span>
+    <span class="pill">对照 <b>ColPali 免解析</b></span>
+  </div>
+</header>
+
+<section id="why">
+  <h2><span class="n">§1</span>为什么文档解析是 RAG 质量瓶颈</h2>
+  <p>PDF 的本质是<b>「打印指令」格式，不是「结构化内容」格式</b>。它内部只有「在坐标 (x, y) 处以某字体绘制某字符」的绘图指令——没有段落、没有标题、没有表格、没有阅读顺序。解析器必须依靠几何启发式或模型<b>反向推断</b>逻辑结构。四个具体难点：</p>
+  <div class="two">
+    <div class="mini"><div class="h">布局是二维的，LLM 输入是一维的</div><p>双栏论文按字符流顺序读出来会左右两栏交错。阅读顺序（reading order）本身就是一个需要模型解决的任务。</p></div>
+    <div class="mini"><div class="h">表格退化</div><p>无边框表、合并单元格、跨页表在文本流中变成无法对齐的碎片，行列关系彻底丢失。</p></div>
+    <div class="mini"><div class="h">公式乱码</div><p>数学符号在 PDF 里是特殊字体的字形，直接抽取得到乱码，必须识别转成 LaTeX。</p></div>
+    <div class="mini"><div class="h">扫描件无文本层</div><p>整页只是一张图片，任何文本抽取都必须先 OCR。</p></div>
+  </div>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 110" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b5451f"/></marker></defs>
+      <rect x="10" y="30" width="120" height="50" rx="8" fill="#fdf7f2" stroke="#b5451f"/><text x="70" y="52" text-anchor="middle" font-size="12" font-weight="700" fill="#b5451f">坏解析</text><text x="70" y="70" text-anchor="middle" font-size="10" fill="#5c574f">乱序 / 表格碎裂</text>
+      <line x1="132" y1="55" x2="158" y2="55" stroke="#b5451f" stroke-width="1.5" marker-end="url(#ar4)"/>
+      <rect x="161" y="30" width="120" height="50" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="221" y="52" text-anchor="middle" font-size="12" font-weight="700">坏 chunking</text><text x="221" y="70" text-anchor="middle" font-size="10" fill="#5c574f">切在错误边界上</text>
+      <line x1="283" y1="55" x2="309" y2="55" stroke="#b5451f" stroke-width="1.5" marker-end="url(#ar4)"/>
+      <rect x="312" y="30" width="120" height="50" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="372" y="52" text-anchor="middle" font-size="12" font-weight="700">坏 embedding</text><text x="372" y="70" text-anchor="middle" font-size="10" fill="#5c574f">语义向量失真</text>
+      <line x1="434" y1="55" x2="460" y2="55" stroke="#b5451f" stroke-width="1.5" marker-end="url(#ar4)"/>
+      <rect x="463" y="30" width="120" height="50" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="523" y="52" text-anchor="middle" font-size="12" font-weight="700">检索无关内容</text><text x="523" y="70" text-anchor="middle" font-size="10" fill="#5c574f">recall 崩塌</text>
+      <line x1="585" y1="55" x2="611" y2="55" stroke="#b5451f" stroke-width="1.5" marker-end="url(#ar4)"/>
+      <rect x="614" y="30" width="96" height="50" rx="8" fill="#fdf7f2" stroke="#b5451f"/><text x="662" y="58" text-anchor="middle" font-size="12" font-weight="700" fill="#b5451f">幻觉</text>
+    </svg>
+    <figcaption>失败链条：上游解析错误会沿整条管道放大。ChatDOC 的对照实验（arXiv:2401.12599）证明：增强 PDF 结构识别能显著提升 RAG 问答质量。</figcaption>
+  </figure>
+</section>
+
+<section id="pipeline">
+  <h2><span class="n">§2</span>管线式方案：每个子任务一个专用模型</h2>
+  <p>管线派的思路：布局检测、文本抽取、表格识别、公式识别各用专门模型，最后按坐标重组。<b>可解释、可局部替换，但误差级联</b>——布局检测框错一个区域，后面全错。</p>
+  <table>
+    <tr><th>工具</th><th>机制</th><th>强项</th><th>短板</th></tr>
+    <tr><td><b>PyMuPDF</b></td><td>直接读 PDF 文本层，按坐标提取</td><td class="good">毫秒级/页，零模型</td><td class="vs">无布局理解；扫描件无能为力</td></tr>
+    <tr><td><b>pdfplumber</b></td><td>pdfminer 基础上用线条/坐标几何规则抽表</td><td class="good">有边框规整表格（财报）</td><td class="vs">无边框表基本失效</td></tr>
+    <tr><td><b>unstructured</b></td><td>多格式统一入口；hi_res 模式 = detectron2 布局 + Tesseract/PaddleOCR</td><td class="good">生态整合（LangChain/LlamaIndex 原生）</td><td class="vs">泛而不精，hi_res 慢</td></tr>
+    <tr><td><b>Docling</b>（IBM）</td><td>DocLayNet 布局分析 + <b>TableFormer</b> 表格结构识别（视觉 Transformer 预测行列/表头/合并单元格）</td><td class="good">表格结构最强之一；MIT 协议纯本地；统一 DoclingDocument → MD/JSON</td><td class="vs">公式偏弱</td></tr>
+    <tr><td><b>marker</b></td><td>布局检测 + texify 系公式模型，输出 Markdown</td><td class="good">速度/质量平衡，学术友好</td><td class="vs">模糊扫描/水印页出错；表格 TEDS 偏低</td></tr>
+    <tr><td><b>MinerU</b>（上海AI Lab）</td><td><b>DocLayout-YOLO</b> 布局 + YOLOv8 公式检测 + UniMERNet 公式识别 + PaddleOCR + 阅读顺序后处理</td><td class="good">中文突出；长期管线派最强（布局检测是关键优势）</td><td class="vs">组件多部署重；误差级联</td></tr>
+  </table>
+  <p class="sub">本地关联：LightRAG 的 parser 层直接集成了 MinerU 和 Docling 作为可选解析后端（第 5 章）。</p>
+</section>
+
+<section id="vlm">
+  <h2><span class="n">§3</span>端到端 VLM 浪潮：图像进，Markdown 出</h2>
+  <p>2023 年起的范式转变：不再「检测→识别→重组」，而是一个视觉语言模型端到端完成——<b>整页图像输入，结构化 Markdown/HTML 输出</b>。按时间线看关键节点：</p>
+  <div class="timeline">
+    <div class="tl"><div class="yr">2023</div><div class="pt"></div><div class="body"><b>Nougat（Meta）</b><div class="d">先驱：Swin 编码器 + mBART 解码器，学术 PDF 直出含 LaTeX 的 Markdown。局限：只擅长论文版式，易重复退化。<span class="anchor-note">arXiv:2308.13418</span></div></div></div>
+    <div class="tl"><div class="yr">2024</div><div class="pt"></div><div class="body"><b>GOT-OCR2.0</b><div class="d">「OCR-2.0」理念：文字、公式、表格、图表、乐谱统一视为「字符」。仅 580M 参数。弱点：彩色背景页失败。<span class="anchor-note">arXiv:2409.01704</span></div></div></div>
+    <div class="tl"><div class="yr">2025</div><div class="pt"></div><div class="body"><b>olmOCR（AllenAI）</b><div class="d">Qwen2-VL-7B 微调，核心技巧 <b>document anchoring</b>——把 PyPDF 抽出的文本块坐标注入提示，给视觉识别提供文本层锚点。成本约 <b>$176–190/百万页</b>（GPT-4o 的 1/32）。配套 olmOCR-Bench 用 7000+ 单元测试式判分取代编辑距离。<span class="anchor-note">arXiv:2502.18443</span></div></div></div>
+    <div class="tl"><div class="yr">2025</div><div class="pt"></div><div class="body"><b>dots.ocr（小红书）</b><div class="d">1.7B 单一 VLM 同时做布局检测与内容识别，<b>换 prompt 切换任务</b>，消除多模型协调。OmniDocBench 文本/表格/阅读顺序三项 SOTA。<span class="anchor-note">arXiv:2512.02498</span></div></div></div>
+    <div class="tl"><div class="yr">2025</div><div class="pt"></div><div class="body"><b>PaddleOCR-VL（百度）</b><div class="d">仅 0.9B（NaViT 动态分辨率 + ERNIE-4.5-0.3B），OmniDocBench v1.5 以 92.6 登顶，109 种语言——证明「小模型 + 好数据」路线可行。</div></div></div>
+    <div class="tl"><div class="yr">2025.09</div><div class="pt"></div><div class="body"><b>MinerU2.5</b><div class="d">管线派转向 VLM 的代表：1.2B「解耦两阶段」——先在 1036² 下采样图上做全局布局，再按布局裁出原生分辨率 patch 做细粒度识别，避免整页高分辨率的 token 爆炸。<span class="anchor-note">arXiv:2509.22186</span></div></div></div>
+    <div class="tl alt"><div class="yr">2025.10</div><div class="pt"></div><div class="body"><b>DeepSeek-OCR：醉翁之意不在 OCR</b><div class="d">立意是「<b>上下文光学压缩</b>」：用 2D 视觉 token 压缩长文本。压缩比 &lt;10× 时 OCR 精度 97%，20× 仍有 60%；100 个视觉 token 就超过用 256 token 的 GOT-OCR2.0；单卡 A100 日处理 20 万+页。它暗示：文档图像可能成为 LLM 长上下文/记忆的压缩载体。<span class="anchor-note">arXiv:2510.18234</span></div></div></div>
+  </div>
+  <div class="box warn">
+    <div class="t"><span class="ic">避坑</span>官方 benchmark ≠ 真实文档</div>
+    <p>Mistral OCR（2025 商用 API）官方宣称 94.9% 准确率、$1/千页；但独立评测显示发票等真实场景可靠性仅 63.75%，纯转写准确 98.75% 的同时<b>漏抽 27.5% 的数据</b>。任何 OCR 选型都要在自己的文档样本上跑过再定。</p>
+  </div>
+</section>
+
+<section id="bench">
+  <h2><span class="n">§4</span>OmniDocBench：统一标尺与格局</h2>
+  <p>OmniDocBench（上海AI Lab，CVPR 2025）：1651 页、10 类文档（论文/教材/试卷/财报/报纸/杂志/幻灯片等）、5 种布局、5 种语言。综合分 = ((1−文本编辑距离)×100 + 表格 TEDS + 公式 CDM) / 3。v1.6 榜单（2026 年中）的格局非常清晰：</p>
+  <table>
+    <tr><th>方法</th><th>类型</th><th>Overall</th><th>表格 TEDS</th></tr>
+    <tr><td><b>MinerU2.5-Pro</b>（1.2B）</td><td>专用 VLM</td><td class="good">95.75</td><td>93.42</td></tr>
+    <tr><td><b>GLM-OCR</b>（0.9B）</td><td>专用 VLM</td><td class="good">95.22</td><td>92.83</td></tr>
+    <tr><td><b>PaddleOCR-VL-1.5</b>（0.9B）</td><td>专用 VLM</td><td class="good">94.93</td><td>91.67</td></tr>
+    <tr><td>Gemini 3 Pro</td><td>通用 VLM</td><td>92.91</td><td class="vs">—</td></tr>
+    <tr><td>Qwen3-VL-235B</td><td>通用 VLM</td><td>89.78</td><td class="vs">—</td></tr>
+    <tr><td>GPT-4o</td><td>通用 VLM</td><td>86.59</td><td class="vs">—</td></tr>
+    <tr><td>MinerU-Pipeline</td><td>管线</td><td class="mid">86.47</td><td>81.88</td></tr>
+    <tr><td>Marker</td><td>管线</td><td class="bad">78.44</td><td>65.77</td></tr>
+  </table>
+  <div class="box key">
+    <div class="t"><span class="ic">格局</span>2024–2026 最重要的变化</div>
+    <p><b>1B 级专用 VLM 已全面超过管线方案和百倍大的通用 VLM。</b>专用模型比 GPT-4o 高近 10 分、比自家管线版高 9 分。含义：新项目做文档解析，默认起点应该是小型专用 VLM 而不是拼管线，也不是调通用大模型 API。（榜单数字随版本变动，引用时注明基准版本。）</p>
+  </div>
+</section>
+
+<section id="hard">
+  <h2><span class="n">§5</span>难点专题：表格、公式、图表、阅读顺序</h2>
+  <table>
+    <tr><th>难点</th><th>技术路线</th><th>评测指标</th><th>工程要点</th></tr>
+    <tr><td><b>表格</b></td><td>结构识别模型（TableFormer/SLANet 输出 HTML/OTSL）vs VLM 直出 HTML</td><td>TEDS（树编辑距离）</td><td class="vs">喂 LLM 时 <b>HTML/Markdown 显著优于纯文本</b>（保留单元格对齐）；跨页表合并至今是各家痛点，chunk 时表格要整块保留</td></tr>
+    <tr><td><b>公式</b></td><td>专用模型（UniMERNet/pix2tex）或 VLM 直出 LaTeX</td><td>CDM（字符检测匹配）</td><td class="vs">学术 RAG 中公式丢失会让 chunk 语义残缺</td></tr>
+    <tr><td><b>图表</b></td><td>chart-to-table / chart-to-JSON（GOT-OCR2.0、PaddleOCR-VL 支持）</td><td>—</td><td class="vs">不反解的话，图表信息在纯文本 RAG 中完全丢失</td></tr>
+    <tr><td><b>阅读顺序</b></td><td>规则（XY-Cut / XY-Cut++）vs VLM 训练中隐式学习</td><td>独立评分维度</td><td class="vs">双栏、图文混排、报纸版式的核心难题</td></tr>
+  </table>
+</section>
+
+<section id="api">
+  <h2><span class="n">§6</span>商业 API 速览</h2>
+  <div class="two">
+    <div class="mini"><div class="h">Azure Document Intelligence / AWS Textract</div><p>老牌企业级：预置模型（发票/收据/身份证）+ 自定义训练，合规完善。适合表单类结构化抽取，深度绑定各自云生态。</p></div>
+    <div class="mini"><div class="h">LlamaParse</div><p>面向 RAG 设计，多档解析模式（含 agentic 模式调 VLM），LlamaIndex 技术栈里从 PDF 到 Markdown 路径最短。</p></div>
+    <div class="mini"><div class="h">Reducto</div><p>「可审计的高精度」：agentic OCR 纠错层 + <b>字段级引用回溯到原文位置</b>，SOC 2 / HIPAA / 零数据保留。金融法务首选。</p></div>
+    <div class="mini"><div class="h">Chunkr</div><p>开源可自托管的「解析 + 分块」一体化服务，直接输出 RAG-ready chunks。</p></div>
+  </div>
+  <p class="sub">选择逻辑：合规可审计 → Reducto / Azure DI；LlamaIndex 栈 → LlamaParse；成本敏感大批量 → 自托管开源 VLM。</p>
+</section>
+
+<section id="decide">
+  <h2><span class="n">§7</span>选型决策树</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
+      <rect x="270" y="10" width="180" height="44" rx="22" fill="#fdf7f2" stroke="#b5451f" stroke-width="1.5"/>
+      <text x="360" y="37" text-anchor="middle" font-size="13" font-weight="800" fill="#b5451f">文档是什么类型？</text>
+      <line x1="360" y1="56" x2="360" y2="76" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar5)"/>
+      <!-- row 1 -->
+      <rect x="10" y="80" width="225" height="64" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="122" y="102" text-anchor="middle" font-size="12" font-weight="700">干净数字 PDF（有文本层、单栏）</text>
+      <text x="122" y="121" text-anchor="middle" font-size="11" fill="#1f6f6b" font-weight="700">→ PyMuPDF / pdfplumber</text>
+      <text x="122" y="136" text-anchor="middle" font-size="10" fill="#5c574f">快 100 倍，不需要模型</text>
+      <rect x="248" y="80" width="225" height="64" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="360" y="102" text-anchor="middle" font-size="12" font-weight="700">规整表格（财报/合同）</text>
+      <text x="360" y="121" text-anchor="middle" font-size="11" fill="#1f6f6b" font-weight="700">→ pdfplumber / Docling</text>
+      <text x="360" y="136" text-anchor="middle" font-size="10" fill="#5c574f">高价值场景上 Reducto / Azure DI</text>
+      <rect x="486" y="80" width="225" height="64" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="598" y="102" text-anchor="middle" font-size="12" font-weight="700">学术论文（公式/双栏）</text>
+      <text x="598" y="121" text-anchor="middle" font-size="11" fill="#1f6f6b" font-weight="700">→ MinerU / marker</text>
+      <text x="598" y="136" text-anchor="middle" font-size="10" fill="#5c574f">质量优先 MinerU2.5 / dots.ocr</text>
+      <!-- row 2 -->
+      <rect x="10" y="160" width="225" height="64" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="122" y="182" text-anchor="middle" font-size="12" font-weight="700">中文 / 中英混排</text>
+      <text x="122" y="201" text-anchor="middle" font-size="11" fill="#1f6f6b" font-weight="700">→ MinerU / PaddleOCR-VL / GLM-OCR</text>
+      <text x="122" y="216" text-anchor="middle" font-size="10" fill="#5c574f">中文训练数据充分</text>
+      <rect x="248" y="160" width="225" height="64" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="360" y="182" text-anchor="middle" font-size="12" font-weight="700">扫描件 / 拍照 / 手写</text>
+      <text x="360" y="201" text-anchor="middle" font-size="11" fill="#1f6f6b" font-weight="700">→ 必须 VLM：olmOCR 等</text>
+      <text x="360" y="216" text-anchor="middle" font-size="10" fill="#5c574f">英文大批量 $190/百万页</text>
+      <rect x="486" y="160" width="225" height="64" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="598" y="182" text-anchor="middle" font-size="12" font-weight="700">海量异构语料（冷启动）</text>
+      <text x="598" y="201" text-anchor="middle" font-size="11" fill="#1f6f6b" font-weight="700">→ olmOCR / DeepSeek-OCR</text>
+      <text x="598" y="216" text-anchor="middle" font-size="10" fill="#5c574f">20 万页/天/卡 批量线性化</text>
+      <!-- row 3 -->
+      <rect x="248" y="240" width="225" height="64" rx="9" fill="#f6f4fa" stroke="#5b4a8a"/>
+      <text x="360" y="262" text-anchor="middle" font-size="12" font-weight="700" fill="#5b4a8a">视觉信息主导（幻灯片/图表密集）</text>
+      <text x="360" y="281" text-anchor="middle" font-size="11" fill="#5b4a8a" font-weight="700">→ 跳过解析，直接 ColPali 视觉检索</text>
+      <text x="360" y="296" text-anchor="middle" font-size="10" fill="#5c574f">见 §8 对照路线</text>
+      <!-- principle -->
+      <rect x="120" y="330" width="480" height="66" rx="10" fill="#fbf7ee" stroke="#8a6d3b"/>
+      <text x="360" y="356" text-anchor="middle" font-size="12.5" font-weight="800" fill="#8a6d3b">通用原则：两级路由</text>
+      <text x="360" y="378" text-anchor="middle" font-size="11.5" fill="#5c574f">先用便宜方案兜底；检测到复杂版面（无文本层 / 多栏 / 表格密集）再升级 VLM</text>
+    </svg>
+    <figcaption>按文档类型选方案。生产系统的常见架构是两级路由：先探测文本层与版面复杂度，简单页走 PyMuPDF，复杂页才进 VLM——用 10% 的成本覆盖 90% 的页面。</figcaption>
+  </figure>
+</section>
+
+<section id="rag">
+  <h2><span class="n">§8</span>与 RAG 的衔接 + ColPali 对照路线</h2>
+  <h3>解析输出格式决定 chunking 上限</h3>
+  <ul>
+    <li>输出带层级的 Markdown/JSON，才能做 <b>markdown-aware chunking</b>（按标题/结构边界切）——实证比固定长度和语义切分高 5–10 个百分点（Snowflake 金融 RAG）。</li>
+    <li><b>parser 和 chunker 要协同选择</b>：结构感知的 chunker 只有配上保留布局的 parser 才有价值。</li>
+    <li>保留元素类型和页码/坐标元数据：表格整块保留、引用溯源、chunk 过滤都靠它。</li>
+  </ul>
+  <h3>对照路线：ColPali——不解析，直接视觉检索</h3>
+  <p>ColPali（arXiv:2407.01449）把整页文档图像经 VLM 编码为 patch 网格，每个 patch 投影成 128 维向量，用 ColBERT 式 late interaction 与查询匹配——<b>完全绕过 OCR、解析、chunking 三步</b>。在 ViDoRe 基准上 NDCG@5 达 <b>0.81</b>，传统「解析→切分→嵌入」管线只有 <b>0.66</b>。</p>
+  <table>
+    <tr><th></th><th>解析路线</th><th>ColPali 视觉路线</th></tr>
+    <tr><td><b>视觉密集文档</b></td><td class="bad">图表信息丢失</td><td class="good">碾压式领先</td></tr>
+    <tr><td><b>存储</b></td><td class="good">单向量/块</td><td class="bad">多向量/页，开销大</td></tr>
+    <tr><td><b>检索产物</b></td><td class="good">文本，可全文操作、细粒度引用</td><td class="bad">页面图片，需多模态 LLM 消费</td></tr>
+    <tr><td><b>混合架构</b></td><td colspan="2" class="vs">实践折中：ColPali 做页面级召回 + VLM 对召回页面即时解析</td></tr>
+  </table>
+  <div class="box tip">
+    <div class="t"><span class="ic">承上启下</span>本章之后</div>
+    <p>解析把文档变成干净的结构化文本，第 2 章的管道把它变成可检索的索引。接下来三章讨论的问题是：当「文本块 + 向量」这个索引单位不够用时，如何给语料建图（第 4、5 章）或建树（第 6 章）。</p>
+  </div>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§9</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">解析对 RAG 质量的影响（对照实验）</span> — ChatDOC 团队. <a href="https://arxiv.org/abs/2401.12599">arxiv.org/abs/2401.12599</a>；综述：<a href="https://www.omdena.com/blog/document-parsing-for-rag">Omdena: Document Parsing for RAG</a></li>
+    <li><span class="rt">OmniDocBench（统一基准）</span> — <a href="https://arxiv.org/abs/2412.07626">arxiv.org/abs/2412.07626</a>；实时榜单：<a href="https://github.com/opendatalab/OmniDocBench">github.com/opendatalab/OmniDocBench</a>（本章表格取自 v1.6，随版本变动）</li>
+    <li><span class="rt">Docling</span> — IBM 技术报告. <a href="https://arxiv.org/abs/2408.09869">arxiv.org/abs/2408.09869</a>；<a href="https://research.ibm.com/blog/docling-generative-AI">IBM Research Blog</a></li>
+    <li><span class="rt">MinerU</span> — <a href="https://arxiv.org/abs/2409.18839">arxiv.org/abs/2409.18839</a>；<span class="rt">MinerU2.5（解耦两阶段）</span> — <a href="https://arxiv.org/abs/2509.22186">arxiv.org/abs/2509.22186</a></li>
+    <li><span class="rt">Nougat</span> — <a href="https://arxiv.org/abs/2308.13418">arxiv.org/abs/2308.13418</a>；<span class="rt">GOT-OCR2.0</span> — <a href="https://arxiv.org/abs/2409.01704">arxiv.org/abs/2409.01704</a></li>
+    <li><span class="rt">olmOCR（document anchoring、$176–190/百万页）</span> — <a href="https://arxiv.org/abs/2502.18443">arxiv.org/abs/2502.18443</a>；<a href="https://allenai.org/blog/olmocr">Ai2 Blog</a>；olmOCR-Bench 分数：<a href="https://allenai.org/blog/olmocr-2">olmOCR 2 Blog</a></li>
+    <li><span class="rt">dots.ocr</span> — <a href="https://arxiv.org/abs/2512.02498">arxiv.org/abs/2512.02498</a>；<span class="rt">PaddleOCR-VL 登顶报道</span> — <a href="https://www.qbitai.com/2025/10/342941.html">量子位</a></li>
+    <li><span class="rt">DeepSeek-OCR（上下文光学压缩）</span> — <a href="https://arxiv.org/abs/2510.18234">arxiv.org/abs/2510.18234</a>；解读：<a href="https://www.bentoml.com/blog/deepseek-ocr-contexts-optical-compression-explained">BentoML</a></li>
+    <li><span class="rt">Mistral OCR 独立评测（63.75% / 漏抽 27.5%）</span> — <a href="https://www.koncile.ai/en/ressources/mistral-ai-vs-chatgpt-reliable-solution-ocr-2025">Koncile</a>；<a href="https://www.codesota.com/ocr/mistral-ocr-3">CodeSOTA</a></li>
+    <li><span class="rt">商业 API 对比</span> — <a href="https://particula.tech/blog/document-parsing-rag-reducto-llamaparse-unstructured-docling">Particula: Reducto vs LlamaParse vs Docling</a>；<a href="https://apiscout.dev/guides/llamaparse-vs-reducto-best-document-ai-api-2026">APIScout</a></li>
+    <li><span class="rt">阅读顺序（XY-Cut++）</span> — <a href="https://arxiv.org/abs/2504.10258">arxiv.org/abs/2504.10258</a></li>
+    <li><span class="rt">ColPali（ViDoRe 0.81 vs 0.66）</span> — <a href="https://arxiv.org/abs/2407.01449">arxiv.org/abs/2407.01449</a>；<a href="https://blog.vespa.ai/the-rise-of-vision-driven-document-retrieval-for-rag/">Vespa: Vision-Driven Document Retrieval</a></li>
+    <li><span class="rt">Parser × Chunker 协同实证</span> — <a href="https://www.snowflake.com/en/blog/engineering/impact-retrieval-chunking-finance-rag/">Snowflake Engineering</a>；<a href="https://www.researchgate.net/publication/403823978_Empirical_Evaluation_of_PDF_Parsing_and_Chunking_for_Financial_Question_Answering_with_RAG">Empirical Evaluation of PDF Parsing and Chunking (Finance QA)</a></li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="02-pipeline.html"><span class="lbl">← 上一页</span><div class="ti">传统 RAG 全链路</div></a>
+  <a href="04-graphrag.html" class="next"><span class="lbl">下一页 →</span><div class="ti">GraphRAG 精读</div></a>
+</div>
+<footer>knowledge-base-learning · 基于本地仓库与公开资料整理 · 2026-07</footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>知识库系统学习地图 —— RAG 全景：管道、图、树、视觉与记忆</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand">KB<b>·Learning</b></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本页</div>
+  <ol>
+    <li><a href="#about">这套教程是什么</a></li>
+    <li><a href="#atlas">一图总览</a></li>
+    <li><a href="#chapters">章节目录</a></li>
+    <li><a href="#paths">三条学习路径</a></li>
+    <li><a href="#repos">本地仓库指南</a></li>
+    <li><a href="#cheat">选型速查表</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html" class="cur">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">knowledge-base-learning</div>
+  <h1>知识库系统学习地图</h1>
+  <p class="lead">一套面向 agent 开发者的 RAG 深度教程：10 章覆盖历史脉络、全链路机制、文档解析、图/树两族结构化方案的代码级精读、前沿趋势、本 workspace 五个真实仓库的实战对照、Manus / Kimi / 豆包三个成熟产品的路线拆解，以及 2025–2026 逐月编年（含 2026 上半年实时调研）。</p>
+  <div class="pills">
+    <span class="pill">代码精读 <b>graphrag · LightRAG · PageIndex · gbrain · MiroFish</b></span>
+    <span class="pill">语言 <b>中文</b></span>
+    <span class="pill">更新 <b>2026-07</b></span>
+  </div>
+</header>
+
+<section id="about">
+  <h2><span class="n">§1</span>这套教程是什么</h2>
+  <p>它假设你已经理解 LLM、prompt、工具调用这些概念，直接讲检索系统的<b>机制、数字与取舍</b>。三个贯穿全篇的立场：</p>
+  <div class="three">
+    <div class="mini"><div class="h">实证优先</div><p>每个技术选择都给 benchmark 数字和来源；对 win-rate 式评测保持警惕（LightRAG 的评测争议是全书最重要的反面教材之一）。</p></div>
+    <div class="mini"><div class="h">简单基线出奇能打</div><p>固定 chunking 打平语义分块、BM25 反杀 dense、强稠密检索器压过多数图 RAG——升级架构前先确认失败模式。</p></div>
+    <div class="mini"><div class="h">检索是工具不是终点</div><p>行业正从「RAG 流水线」走向「context engineering」：向量、图、树、grep、视觉召回都是 agent 工具箱里的一把工具。</p></div>
+  </div>
+</section>
+
+<section id="atlas">
+  <h2><span class="n">§2</span>一图总览</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="arI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
+      <!-- base layer -->
+      <rect x="15" y="270" width="690" height="54" rx="10" fill="#fbf7ee" stroke="#8a6d3b"/>
+      <text x="360" y="292" text-anchor="middle" font-size="12.5" font-weight="800" fill="#8a6d3b">地基：文档解析与 OCR（第 3 章）—— 坏解析毁掉一切</text>
+      <text x="360" y="311" text-anchor="middle" font-size="10.5" fill="#5c574f">管线派（MinerU/Docling） vs 专用 VLM（olmOCR/dots.ocr/MinerU2.5） · OmniDocBench 格局：1B 专用 VLM 全面胜出</text>
+      <!-- pipeline layer -->
+      <rect x="15" y="180" width="690" height="74" rx="10" fill="#fff" stroke="#b5451f" stroke-width="1.5"/>
+      <text x="360" y="203" text-anchor="middle" font-size="12.5" font-weight="800" fill="#b5451f">主干：传统 RAG 全链路（第 2 章）—— 所有系统的公共底座</text>
+      <text x="360" y="223" text-anchor="middle" font-size="10.5" fill="#5c574f">chunking → embedding → HNSW/IVF 索引 → hybrid 检索 + RRF → cross-encoder 重排 → 评估闭环（recall@k / RAGAS）</text>
+      <text x="360" y="241" text-anchor="middle" font-size="10.5" fill="#2f7d43" font-weight="700">生产默认：recursive 512 + hybrid + RRF(K=60) + rerank —— 先把这条线搭对</text>
+      <!-- structural layer -->
+      <rect x="15" y="74" width="220" height="90" rx="10" fill="#f2f8f7" stroke="#1f6f6b"/>
+      <text x="125" y="97" text-anchor="middle" font-size="12" font-weight="800" fill="#1f6f6b">图族（第 4、5 章）</text>
+      <text x="125" y="117" text-anchor="middle" font-size="10.5" fill="#5c574f">GraphRAG：社区金字塔</text>
+      <text x="125" y="133" text-anchor="middle" font-size="10.5" fill="#5c574f">LightRAG：双层关键词</text>
+      <text x="125" y="149" text-anchor="middle" font-size="10.5" fill="#5c574f">HippoRAG：PPR 多跳</text>
+      <rect x="250" y="74" width="220" height="90" rx="10" fill="#f6f4fa" stroke="#5b4a8a"/>
+      <text x="360" y="97" text-anchor="middle" font-size="12" font-weight="800" fill="#5b4a8a">树族（第 6 章）</text>
+      <text x="360" y="117" text-anchor="middle" font-size="10.5" fill="#5c574f">PageIndex：推理树搜索</text>
+      <text x="360" y="133" text-anchor="middle" font-size="10.5" fill="#5c574f">RAPTOR：聚类摘要树</text>
+      <text x="360" y="149" text-anchor="middle" font-size="10.5" fill="#5c574f">长文档 · 可解释 · 无向量</text>
+      <rect x="485" y="74" width="220" height="90" rx="10" fill="#fff" stroke="#2b5f8a"/>
+      <text x="595" y="97" text-anchor="middle" font-size="12" font-weight="800" fill="#2b5f8a">视觉族 + 记忆（第 7 章）</text>
+      <text x="595" y="117" text-anchor="middle" font-size="10.5" fill="#5c574f">ColPali 免解析视觉检索</text>
+      <text x="595" y="133" text-anchor="middle" font-size="10.5" fill="#5c574f">mem0 / Letta / Graphiti</text>
+      <text x="595" y="149" text-anchor="middle" font-size="10.5" fill="#5c574f">时序 KG：事实有生命周期</text>
+      <!-- agentic top -->
+      <rect x="145" y="8" width="430" height="42" rx="21" fill="#fdf7f2" stroke="#b5451f" stroke-width="1.5"/>
+      <text x="360" y="34" text-anchor="middle" font-size="12.5" font-weight="800" fill="#b5451f">屋顶：Agentic RAG（第 7、8 章）—— 模型决定调用哪个、调用几次</text>
+      <line x1="125" y1="178" x2="125" y2="168" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
+      <line x1="360" y1="178" x2="360" y2="168" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
+      <line x1="595" y1="178" x2="595" y2="168" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
+      <line x1="360" y1="268" x2="360" y2="258" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
+      <line x1="250" y1="72" x2="290" y2="54" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
+      <line x1="360" y1="72" x2="360" y2="54" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
+      <line x1="470" y1="72" x2="430" y2="54" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
+    </svg>
+    <figcaption>知识库系统的四层楼：解析是地基，管道是主干，图/树/视觉是针对特定失败模式的专门楼层，agentic 是把它们统一调度的屋顶。第 1 章讲这栋楼怎么盖起来的（历史），第 8 章教你按需求选楼层（选型）。</figcaption>
+  </figure>
+</section>
+
+<section id="chapters">
+  <h2><span class="n">§3</span>章节目录</h2>
+  <div class="chapgrid">
+    <a class="chap" href="01-history.html"><span class="no">CH 01</span><div class="h">RAG 演进史</div><p>「RAG」的三次定义漂移；2017–2026 完整时间线；「RAG 已死」之争的实证裁决；五族方案全景。</p><div class="meta">历史脉络 · 20 分钟</div></a>
+    <a class="chap" href="02-pipeline.html"><span class="no">CH 02 ★重点</span><div class="h">传统 RAG 全链路</div><p>chunking / embedding / HNSW / hybrid+RRF / 重排 / 查询变换 / 评估——八个决策点的机制、数字与生产默认值。</p><div class="meta">核心机制 · 40 分钟</div></a>
+    <a class="chap" href="03-parsing.html"><span class="no">CH 03</span><div class="h">文档解析与 OCR</div><p>PDF 为什么难；管线派 vs VLM 派；OmniDocBench 格局；选型决策树；ColPali 免解析对照路线。</p><div class="meta">第一公里 · 30 分钟</div></a>
+    <a class="chap" href="04-graphrag.html"><span class="no">CH 04 · 代码精读</span><div class="h">微软 GraphRAG</div><p>8 步索引 workflow、gleaning 补抽、Leiden 社区金字塔、Global Search Map-Reduce、成本画像与 LazyGraphRAG 纠偏。</p><div class="meta">../graphrag · 35 分钟</div></a>
+    <a class="chap" href="05-lightrag.html"><span class="no">CH 05 · 代码精读</span><div class="h">LightRAG</div><p>砍掉社区检测后的双层关键词检索、Map-Reduce 描述摘要、15+ 可插拔后端、以及跨论文分数差 40 倍的评测争议。</p><div class="meta">../LightRAG · 35 分钟</div></a>
+    <a class="chap" href="06-pageindex.html"><span class="no">CH 06 · 代码精读</span><div class="h">PageIndex</div><p>无向量推理式检索：三条建树路径、递归细分、agent 拿三个工具在树上推理；与 RAPTOR 和向量 RAG 的取舍。</p><div class="meta">../PageIndex · 30 分钟</div></a>
+    <a class="chap" href="07-frontier.html"><span class="no">CH 07</span><div class="h">前沿方案</div><p>Self-RAG/CRAG 自省、HippoRAG 的 PageRank 多跳、图 RAG 生态硬数据、ColPali、agentic RAG、记忆系统与时序 KG。</p><div class="meta">2024–2026 · 35 分钟</div></a>
+    <a class="chap" href="08-practice.html"><span class="no">CH 08 · 实战</span><div class="h">本地实战与选型</div><p>gbrain 零 LLM 四路混合检索、MiroFish 时序图谱集体记忆；五仓库同轴对照；失败模式驱动的选型决策图；动手路线。</p><div class="meta">../gbrain ../MiroFish · 30 分钟</div></a>
+    <a class="chap" href="09-industry.html"><span class="no">CH 09 · 产品拆解</span><div class="h">工业界产品拆解</div><p>Manus 上下文工程六原则、Kimi 长上下文 + 端到端 RL 搜索、豆包法条场景解剖与火山引擎知识库栈；法律垂直 RAG 对照。</p><div class="meta">Manus / Kimi / 豆包 · 30 分钟</div></a>
+    <a class="chap" href="10-recent.html"><span class="no">CH 10 · 编年</span><div class="h">2025–2026 编年</div><p>RAG 被吸收的两年：deep research 普及、RL 学检索谱系、记忆系统演化、context engineering 学科化——逐月钉在时间线上，含 2026 上半年实时调研。</p><div class="meta">2025.01–2026.07 · 35 分钟</div></a>
+  </div>
+</section>
+
+<section id="paths">
+  <h2><span class="n">§4</span>三条学习路径</h2>
+  <table>
+    <tr><th>你是谁</th><th>路径</th><th>理由</th></tr>
+    <tr><td><b>要建生产系统</b></td><td>02 → 03 → 08 →（按需 04–06）→ 09 → 10</td><td class="vs">管道 + 解析决定 80% 质量；08 的决策图告诉你要不要读结构化章节；09/10 看大厂怎么落地、行业走到了哪</td></tr>
+    <tr><td><b>做技术选型 / 架构评审</b></td><td>01 → 10 → 08 → 09 → 04 → 05 → 06 → 07</td><td class="vs">先拿全景、最新格局和对照表，再深入每个候选的机制与成本</td></tr>
+    <tr><td><b>系统学习 / 面试准备</b></td><td>01 → 02 → … → 09 → 10 顺序读完</td><td class="vs">约 5 小时；章节间有刻意的呼应（成本轴、评测争议、五族分类、两年编年收束）</td></tr>
+  </table>
+</section>
+
+<section id="repos">
+  <h2><span class="n">§5</span>本地仓库指南（../）</h2>
+  <div class="filemap">
+    <div class="f"><span class="p">../graphrag</span><span class="d">微软 GraphRAG 多包 monorepo。看点：workflows 编排、gleaning、Leiden、Map-Reduce 查询 → 第 4 章</span></div>
+    <div class="f"><span class="p">../LightRAG</span><span class="d">HKUDS 轻量图 RAG。看点：operate.py 双层检索、存储抽象、prompt 工程 → 第 5 章</span></div>
+    <div class="f"><span class="p">../PageIndex</span><span class="d">Vectify 无向量树搜索。看点：三条建树路径、agentic demo（150 行看懂全部理念）→ 第 6 章</span></div>
+    <div class="f"><span class="p">../gbrain</span><span class="d">TypeScript 生产级代码库检索。看点：零 LLM 链接抽取、四路 RRF、软删除运维 → 第 8 章</span></div>
+    <div class="f"><span class="p">../MiroFish</span><span class="d">多智能体社会模拟。看点：Ontology-First、Zep 时序图谱、ReAct 多工具报告 → 第 8 章</span></div>
+  </div>
+  <p class="sub">另有旧版 <a href="../pageindex-tutorial.html">pageindex-tutorial.html</a>（单篇 PageIndex 教程），本系列第 6 章是其融入全景后的重写版。</p>
+</section>
+
+<section id="cheat">
+  <h2><span class="n">§6</span>选型速查表</h2>
+  <table>
+    <tr><th>你的场景</th><th>推荐方案</th><th>详见</th></tr>
+    <tr><td>通用文档问答，起步</td><td><b>hybrid + RRF + rerank</b>（recursive 512 chunking）</td><td class="vs">CH02 §9 清单</td></tr>
+    <tr><td>中文 PDF / 扫描件 / 复杂版面</td><td>MinerU2.5 / PaddleOCR-VL 解析，两级路由控成本</td><td class="vs">CH03 §7</td></tr>
+    <tr><td>多跳、跨文档关联推理</td><td>HippoRAG 2；关系显式则零 LLM 建图（gbrain 式）</td><td class="vs">CH07 §2 / CH08 §1</td></tr>
+    <tr><td>全局综述型问题（静态语料）</td><td>GraphRAG（预算足）/ LazyGraphRAG</td><td class="vs">CH04</td></tr>
+    <tr><td>长专业文档精准问答（财报/法规）</td><td>PageIndex 树搜索（容忍秒级延迟）</td><td class="vs">CH06</td></tr>
+    <tr><td>图表/幻灯片密集语料</td><td>ColPali 页面召回 + VLM 即时解析</td><td class="vs">CH03 §8 / CH07 §4</td></tr>
+    <tr><td>Agent 长期记忆（事实会过期）</td><td>Graphiti/Zep 时序 KG 或 mem0</td><td class="vs">CH07 §6 / CH08 §2</td></tr>
+    <tr><td>高价值低频研究型查询</td><td>Agentic 多轮检索（deep research 模式）</td><td class="vs">CH07 §5</td></tr>
+    <tr><td>法条 / 法规类知识库</td><td>结构化：按条款切分 + 时序版本 + 效力层级过滤（勿纯向量）</td><td class="vs">CH09 §5</td></tr>
+  </table>
+  <div class="box key">
+    <div class="t"><span class="ic">一句话</span>全书最重要的三个判断</div>
+    <p>① 结构显式就别让 LLM 抽（确定性 &gt; 概率抽取）；② 索引期成本 vs 查询期成本，看你的查询量摊得平哪边；③ 任何论文数字（尤其 win-rate）都不能替代你自己语料上的 100 对评估集。</p>
+  </div>
+</section>
+
+<footer>knowledge-base-learning · 基于本地五仓库代码精读 + 公开论文/工程博客调研生成 · 关键数字均标注来源 · 2026-07</footer>
+</main>
+</div>
+</body>
+</html>

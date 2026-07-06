@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>07 · 前沿方案 —— 自省、多跳、视觉与记忆 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#selfrag">自省式：Self-RAG / CRAG</a></li>
+    <li><a href="#hippo">HippoRAG：PageRank 做多跳</a></li>
+    <li><a href="#graph-eco">图 RAG 生态与硬数据</a></li>
+    <li><a href="#colpali">视觉检索：ColPali</a></li>
+    <li><a href="#agentic">Agentic RAG 与 Deep Research</a></li>
+    <li><a href="#memory">记忆系统：RAG 的下一站</a></li>
+    <li><a href="#framework">框架生态速览</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html" class="cur">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 07 · Frontier</div>
+  <h1>前沿方案：自省、多跳、视觉与记忆</h1>
+  <p class="lead">前六章覆盖了管道、图、树三大主干。本章补齐 2024–2026 的其余前沿：让检索会自我纠错、让多跳变成一次图算法、让检索跳过文本、以及 RAG 正在演化成的东西——记忆系统。</p>
+  <div class="pills">
+    <span class="pill">自省 <b>Self-RAG / CRAG</b></span>
+    <span class="pill">多跳 <b>HippoRAG PPR</b></span>
+    <span class="pill">视觉 <b>ColPali</b></span>
+    <span class="pill">记忆 <b>mem0 / Letta / Graphiti</b></span>
+  </div>
+</header>
+
+<section id="selfrag">
+  <h2><span class="n">§1</span>自省式检索：Self-RAG 与 CRAG</h2>
+  <p>Naive RAG 有两个盲目：<b>盲目检索</b>（不管问题需不需要）和<b>盲目信任</b>（检回什么用什么）。两个工作分别治这两个病：</p>
+  <div class="two">
+    <div class="mini"><div class="h">Self-RAG <span class="anchor-note">arXiv:2310.11511</span></div><p>训练模型输出<b>反思 token</b>：<code>[Retrieve]</code> 要不要检索、<code>[IsRel]</code> 检回的相关吗、<code>[IsSup]</code> 生成有据吗、<code>[IsUse]</code> 答案有用吗。检索从固定步骤变成模型的自主决策——「按需检索」开山之作。代价：需要专门训练。</p></div>
+    <div class="mini"><div class="h">CRAG <span class="anchor-note">arXiv:2401.15884</span></div><p>免训练路线：轻量<b>检索评估器</b>把结果打为 Correct / Ambiguous / Incorrect 三档。正确→知识精炼（剔除无关句）；错误→丢弃并<b>回退 web 搜索</b>；模糊→两者结合。即插即用，可套在任何现有管道外。</p></div>
+  </div>
+  <p>今天这两个工作的具体实现已不常直接部署，但它们确立的模式无处不在：现代 agent 在工具调用后判断「这个结果够不够、要不要换个查询再来」，就是 Self-RAG/CRAG 思想在提示工程层面的复活。</p>
+</section>
+
+<section id="hippo">
+  <h2><span class="n">§2</span>HippoRAG：把多跳变成一次 PageRank</h2>
+  <p>多跳问题（"A 公司的供应商的 CEO 是谁"）的传统解法是迭代检索——查一跳、读结果、再查一跳，每跳一次 LLM 调用。HippoRAG（OSU，NeurIPS 2024）的洞察来自<b>海马体索引理论</b>：人脑不迭代——新皮层存记忆内容，海马体存稀疏关联索引，回忆是索引上的一次模式补全。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="ar9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
+      <text x="20" y="24" font-size="12" font-weight="700" fill="#8a6d3b" font-family="monospace">离线（"海马体"索引）</text>
+      <rect x="20" y="36" width="180" height="46" rx="8" fill="#fff" stroke="#e7e1d6"/>
+      <text x="110" y="56" text-anchor="middle" font-size="11.5" font-weight="700">全部段落 OpenIE</text>
+      <text x="110" y="72" text-anchor="middle" font-size="10" fill="#5c574f">LLM 抽三元组（短语级节点）</text>
+      <line x1="202" y1="59" x2="232" y2="59" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar9)"/>
+      <rect x="235" y="36" width="180" height="46" rx="8" fill="#fff" stroke="#e7e1d6"/>
+      <text x="325" y="56" text-anchor="middle" font-size="11.5" font-weight="700">三元组知识图谱</text>
+      <text x="325" y="72" text-anchor="middle" font-size="10" fill="#5c574f">无社区、无摘要——只有关联索引</text>
+      <text x="20" y="128" font-size="12" font-weight="700" fill="#1f6f6b" font-family="monospace">在线（一次模式补全）</text>
+      <rect x="20" y="140" width="160" height="46" rx="8" fill="#f2f8f7" stroke="#1f6f6b"/>
+      <text x="100" y="160" text-anchor="middle" font-size="11.5" font-weight="700">查询实体识别</text>
+      <text x="100" y="176" text-anchor="middle" font-size="10" fill="#5c574f">链接到图中节点作种子</text>
+      <line x1="182" y1="163" x2="212" y2="163" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar9)"/>
+      <rect x="215" y="140" width="200" height="46" rx="8" fill="#fdf7f2" stroke="#b5451f" stroke-width="1.5"/>
+      <text x="315" y="160" text-anchor="middle" font-size="11.5" font-weight="700" fill="#b5451f">Personalized PageRank</text>
+      <text x="315" y="176" text-anchor="middle" font-size="10" fill="#5c574f">概率质量沿边扩散——多跳一步完成</text>
+      <line x1="417" y1="163" x2="447" y2="163" stroke="#5c574f" stroke-width="1.4" marker-end="url(#ar9)"/>
+      <rect x="450" y="140" width="160" height="46" rx="8" fill="#fff" stroke="#e7e1d6"/>
+      <text x="530" y="160" text-anchor="middle" font-size="11.5" font-weight="700">按节点分聚合</text>
+      <text x="530" y="176" text-anchor="middle" font-size="10" fill="#5c574f">回段落排序 → 生成</text>
+      <text x="360" y="225" text-anchor="middle" font-size="11" fill="#5c574f">对比迭代检索（IRCoT）：召回相当，在线检索便宜 10–30 倍、快 6–13 倍</text>
+      <text x="360" y="245" text-anchor="middle" font-size="11" fill="#2f7d43">2WikiMultiHopQA Recall@5：ColBERTv2 68.2 → HippoRAG 89.1</text>
+    </svg>
+    <figcaption>HippoRAG：查询期不用 LLM 推理，多跳靠图算法。与 GraphRAG 的差异——图不是用来做社区摘要的，是用来跑 PPR 的。</figcaption>
+  </figure>
+  <p><b>HippoRAG 2</b>（arXiv:2502.14802，"From RAG to Memory"）三处升级：段落节点整合进图（稠密-稀疏结合）、query-to-triple 匹配取代 NER（种子更准）、LLM「识别记忆」过滤检回三元组去噪。结果：MuSiQue F1 44.8→51.9、2Wiki Recall@5 90.4%，且<b>简单 QA 不掉分</b>——这是多数图 RAG 做不到的（结构化方法在单跳问题上通常掉 5–10 个 F1）。</p>
+</section>
+
+<section id="graph-eco">
+  <h2><span class="n">§3</span>图 RAG 生态与最硬的一张数据表</h2>
+  <p>第 4、5 章讲了两个代表，生态里还有几个定位各异的玩家：</p>
+  <table>
+    <tr><th>项目</th><th>一句话定位</th></tr>
+    <tr><td><b>nano-graphrag</b></td><td class="vs">微软 GraphRAG 的 ~1100 行极简实现，LightRAG 的代码底座，教学与魔改首选</td></tr>
+    <tr><td><b>KAG</b>（蚂蚁）</td><td class="vs">专业领域「严谨型」：schema 约束建模 + 图文互索引 + 逻辑形式引导推理，政务/医疗落地。HotpotQA F1 +19.6%<span class="anchor-note"> arXiv:2409.13731</span></td></tr>
+    <tr><td><b>Graphiti / Zep</b></td><td class="vs">不做文档 RAG，做 <b>agent 记忆层</b>：双时间轴时序 KG（§6 详述）</td></tr>
+    <tr><td><b>Cognee</b></td><td class="vs">ECL（Extract-Cognify-Load）管道的「AI 记忆引擎」，图+向量混合，介于 RAG 框架和记忆之间</td></tr>
+    <tr><td><b>Youtu-GraphRAG</b>（腾讯，ICLR 2026）</td><td class="vs">schema 驱动的垂直统一 agent，换领域只改 schema<span class="anchor-note"> arXiv:2508.19855</span></td></tr>
+  </table>
+  <h3>最可信的横评数据</h3>
+  <p>HippoRAG 2 论文的 QA F1 表（统一 Llama-3.3-70B 生成，独立第三方对照）：</p>
+  <table>
+    <tr><th>方法</th><th>MuSiQue</th><th>2Wiki</th><th>HotpotQA</th><th>NarrativeQA</th></tr>
+    <tr><td>NV-Embed-v2（强稠密检索）</td><td>45.7</td><td>61.5</td><td class="good">75.3</td><td>25.7</td></tr>
+    <tr><td>RAPTOR</td><td>28.9</td><td>52.1</td><td>69.5</td><td>21.4</td></tr>
+    <tr><td>GraphRAG</td><td>38.5</td><td>58.6</td><td>68.6</td><td>23.0</td></tr>
+    <tr><td>LightRAG</td><td class="bad">1.6</td><td class="bad">11.6</td><td class="bad">2.4</td><td class="bad">3.7</td></tr>
+    <tr><td>HippoRAG</td><td>35.1</td><td class="good">71.8</td><td>63.5</td><td>16.3</td></tr>
+    <tr><td><b>HippoRAG 2</b></td><td class="good">48.6</td><td class="good">71.0</td><td class="good">75.5</td><td class="good">25.9</td></tr>
+  </table>
+  <p>三个解读：① <b>强稠密检索器是硬基线</b>——多数图 RAG 在通用 QA 上打不过它；② HippoRAG 系在关联最密的 2Wiki 上优势最大——图的价值集中在多跳；③ LightRAG 的崩盘数字与其他论文（GRASP 里 HotpotQA F1 0.819）直接矛盾——回看第 5 章 §7 的评测争议。另注意延迟：GRASP 实测图 RAG 查询普遍 30–50 秒（LightRAG 39.7–51.3s），向量 RAG 是亚秒级。</p>
+  <div class="box key">
+    <div class="t"><span class="ic">共识</span>社区的务实结论</div>
+    <p>先用向量 RAG + rerank 打底（第 2 章清单），确认失败模式确实是「关系推理 / 全局综合」再上图；schema 密集领域（法律/医药/金融合规）图的收益最确定；混合架构（HybridRAG）通常优于单一方案。</p>
+  </div>
+</section>
+
+<section id="colpali">
+  <h2><span class="n">§4</span>视觉检索：ColPali 一族</h2>
+  <p>第 3 章讲了怎么把 PDF 解析好，ColPali（arXiv:2407.01449）的回答是：<b>别解析了</b>。把整页文档图像交给 VLM 编码成 patch 网格，每个 patch 投影为 128 维向量，检索时用 ColBERT 式 late interaction（query token 对 patch 的 MaxSim 求和）打分——OCR、版面分析、chunking 三步全部消失。</p>
+  <ul>
+    <li><b>数字</b>：ViDoRe 基准 NDCG@5 <b>0.81</b> vs 传统「解析→切分→嵌入」管线 <b>0.66</b>；表格、图表、扫描件场景优势最大。</li>
+    <li><b>谱系</b>：ColPali（PaliGemma）→ ColQwen2.5 → ColSmolVLM；基准演进到 ViDoRe V3。</li>
+    <li><b>代价</b>：每页多向量存储开销大；检回的是<b>页面图片</b>，下游必须是多模态 LLM，且难做细粒度文本引用。</li>
+    <li><b>实践折中</b>：ColPali 做页面级召回 + VLM 对召回页即时解析——视觉检索管召回，文本管消费。</li>
+  </ul>
+  <p class="sub">同一根线上的另一端是 DeepSeek-OCR 的「上下文光学压缩」（第 3 章 §3）：一个视觉 token 顶 10 个文本 token 而 OCR 精度保持 97%——文档图像可能成为长上下文与记忆的压缩载体。视觉不只是检索模态，还可能是存储格式。</p>
+</section>
+
+<section id="agentic">
+  <h2><span class="n">§5</span>Agentic RAG 与 Deep Research</h2>
+  <p>把前面所有技术收进一个更大的转变：<b>检索从「流水线的固定第一步」变成「agent 循环中的工具」</b>。模型在推理中发现知识缺口 → 发起定向查询 → 读结果 → 决定继续查还是回答（ReAct、Self-Ask、Search-o1 一脉；综述 arXiv:2506.10408 把它分为 System 1 快速单跳与 System 2 规划/批评/验证两类）。</p>
+  <p>三个已在生产验证的形态：</p>
+  <div class="three">
+    <div class="mini"><div class="h">Deep Research</div><p>多轮迭代检索 + 交叉验证 + 引用合成，一次任务几十次检索调用。OpenAI/Anthropic/Google 均产品化。</p></div>
+    <div class="mini"><div class="h">Agentic search（grep 式）</div><p>Claude Code 对代码库不建向量索引，用 grep/glob 当检索工具，靠模型多轮缩小范围——结构清晰的语料，遍历 + 推理胜过 embedding。</p></div>
+    <div class="mini"><div class="h">推理式树/图搜索</div><p>PageIndex 树上推理（第 6 章）、MiroFish 的 ReAct 多工具报告（第 8 章）——检索工具本身也可以是结构化索引。</p></div>
+  </div>
+  <div class="box tip">
+    <div class="t"><span class="ic">视角</span>Agentic 不是免费的</div>
+    <p>每轮工具调用都是一次 LLM 前向：延迟和成本随轮数线性涨。经验分界——<b>高价值低频</b>查询（尽调、研究、审计）用 agentic 多轮；<b>低价值高频</b>查询（客服 FAQ）用第 2 章的单发管道。中间地带才是路由/自省技术（§1）的用武之地。</p>
+  </div>
+</section>
+
+<section id="memory">
+  <h2><span class="n">§6</span>记忆系统：RAG 的下一站</h2>
+  <p>RAG 是<b>只读</b>的：语料不因对话而变。Agent 记忆系统补上写路径——有写入、压缩、遗忘策略的知识库。这是「From RAG to Memory」（HippoRAG 2 的副标题）所指的方向：</p>
+  <table>
+    <tr><th>系统</th><th>机制</th><th>与 RAG 的关键差异</th></tr>
+    <tr><td><b>mem0</b></td><td>agent 外置记忆 CRUD 层：向量+图+KV，自动抽取「值得记住的事实」</td><td class="vs">有写入与更新决策（记什么、改什么）</td></tr>
+    <tr><td><b>Letta</b>（MemGPT）</td><td>记忆分层 core / recall / archival，放进 agent 循环由模型自管——类比 OS 内存分页</td><td class="vs">模型自己管理记忆的进出</td></tr>
+    <tr><td><b>Graphiti / Zep</b></td><td><b>双时间轴时序 KG</b>：每条边带「事实有效期」+「摄入时间」，新信息不删旧边而是标记失效</td><td class="vs">支持「某时刻什么为真」的时间点查询；DMR 94.8%，检索融合语义+BM25+图遍历且查询路径无 LLM</td></tr>
+  </table>
+  <p>时序这条线值得多看一眼：知识会过期（「A 是 B 公司 CEO」在 2024 为真、2026 为假），静态 RAG 只能覆盖重写，时序 KG 保留完整演化史。本地项目 MiroFish 正是用 Zep/Graphiti 做 agent 群体的「集体记忆」，模拟中的舆论反转依赖事实失效机制——第 8 章展开。</p>
+</section>
+
+<section id="framework">
+  <h2><span class="n">§7</span>框架生态速览</h2>
+  <table>
+    <tr><th>框架</th><th>定位</th><th>选它当</th></tr>
+    <tr><td><b>LlamaIndex</b></td><td>检索/索引专精的开发框架</td><td class="vs">需要细粒度控制索引结构、检索器组合</td></tr>
+    <tr><td><b>Haystack</b>（deepset）</td><td>组件化管道、企业级部署</td><td class="vs">生产管道的工程化、可观测性优先</td></tr>
+    <tr><td><b>RAGFlow</b></td><td>开箱即用 RAG 引擎，强项是 DeepDoc 深度文档解析 + 低代码 UI</td><td class="vs">要快速上线且文档质量复杂</td></tr>
+    <tr><td><b>Dify</b></td><td>LLM 应用平台，RAG 只是其 workflow/agent 能力之一</td><td class="vs">团队要的是应用平台不是检索库</td></tr>
+  </table>
+  <p class="sub">与自研的关系：框架解决的是编排和集成，本系列讲的机制（chunking 策略、混合检索、重排、图/树索引）在任何框架里都要自己做决策——这正是读完第 2–6 章的价值。</p>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§8</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">Self-RAG</span> — Asai et al. <a href="https://arxiv.org/abs/2310.11511">arxiv.org/abs/2310.11511</a>；代码：<a href="https://github.com/akariasai/self-rag">github.com/akariasai/self-rag</a></li>
+    <li><span class="rt">CRAG</span> — Yan et al. <a href="https://arxiv.org/abs/2401.15884">arxiv.org/abs/2401.15884</a></li>
+    <li><span class="rt">RAPTOR</span> — <a href="https://arxiv.org/abs/2401.18059">arxiv.org/abs/2401.18059</a></li>
+    <li><span class="rt">HippoRAG（NeurIPS 2024）</span> — <a href="https://arxiv.org/abs/2405.14831">arxiv.org/abs/2405.14831</a>；<span class="rt">HippoRAG 2</span>（本章 F1 横评表来源）— <a href="https://arxiv.org/abs/2502.14802">arxiv.org/abs/2502.14802</a>；代码：<a href="https://github.com/osu-nlp-group/hipporag">github.com/osu-nlp-group/hipporag</a></li>
+    <li><span class="rt">KAG（蚂蚁）</span> — <a href="https://arxiv.org/abs/2409.13731">arxiv.org/abs/2409.13731</a>；<a href="https://github.com/OpenSPG/KAG">github.com/OpenSPG/KAG</a></li>
+    <li><span class="rt">Graphiti / Zep（双时间轴时序 KG，DMR 94.8%）</span> — <a href="https://arxiv.org/abs/2501.13956">arxiv.org/abs/2501.13956</a>；<a href="https://github.com/getzep/graphiti">github.com/getzep/graphiti</a></li>
+    <li><span class="rt">nano-graphrag</span> — <a href="https://github.com/gusye1234/nano-graphrag">github.com/gusye1234/nano-graphrag</a>；<span class="rt">Cognee</span> — <a href="https://github.com/topoteretes/cognee">github.com/topoteretes/cognee</a>；<span class="rt">Youtu-GraphRAG</span> — <a href="https://arxiv.org/abs/2508.19855">arxiv.org/abs/2508.19855</a></li>
+    <li><span class="rt">ColPali（ViDoRe NDCG@5 0.81）</span> — <a href="https://arxiv.org/abs/2407.01449">arxiv.org/abs/2407.01449</a>；<a href="https://blog.vespa.ai/the-rise-of-vision-driven-document-retrieval-for-rag/">Vespa Blog</a></li>
+    <li><span class="rt">Agentic RAG 综述（System 1/2 分类）</span> — <a href="https://arxiv.org/abs/2506.10408">arxiv.org/abs/2506.10408</a>；资源库：<a href="https://github.com/asinghcsu/AgenticRAG-Survey">AgenticRAG-Survey</a></li>
+    <li><span class="rt">mem0 vs Letta 对比</span> — <a href="https://vectorize.io/articles/mem0-vs-letta">vectorize.io/articles/mem0-vs-letta</a></li>
+    <li><span class="rt">图 RAG 落地经验（multi-hop 41%→78%）</span> — <a href="https://casys.ai/blog/graphrag-vs-vectorrag">casys.ai</a>；schema 密集场景数据：<a href="https://www.falkordb.com/blog/graphrag-accuracy-diffbot-falkordb/">FalkorDB</a></li>
+    <li><span class="rt">查询延迟实测（图 RAG 30–50s）</span> — GRASP. <a href="https://arxiv.org/abs/2605.16598">arxiv.org/abs/2605.16598</a>；<span class="rt">HybridRAG</span> — <a href="https://arxiv.org/abs/2408.04948">arxiv.org/abs/2408.04948</a></li>
+    <li><span class="rt">框架对比</span> — <a href="https://www.firecrawl.dev/blog/best-open-source-rag-frameworks">Firecrawl: Best Open Source RAG Frameworks</a>；<a href="https://langcopilot.com/posts/2025-09-18-best-rag-frameworks-2026">LangCopilot: Best RAG Frameworks 2026</a></li>
+    <li><span class="rt">GraphRAG 资源汇总</span> — <a href="https://github.com/DEEP-PolyU/Awesome-GraphRAG">Awesome-GraphRAG</a></li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="06-pageindex.html"><span class="lbl">← 上一页</span><div class="ti">PageIndex 精读</div></a>
+  <a href="08-practice.html" class="next"><span class="lbl">下一页 →</span><div class="ti">本地实战与选型</div></a>
+</div>
+<footer>knowledge-base-learning · 基于公开论文与工程博客整理，关键数字均标注来源 arXiv 编号 · 2026-07</footer>
+</main>
+</div>
+</body>
+</html>
