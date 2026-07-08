@@ -21,7 +21,7 @@ python3 -m http.server 8931 --directory knowledge-base-learning
 | 05 | `05-lightrag.html` | LightRAG 代码精读（`../LightRAG`）：双层检索、存储抽象、评测争议 |
 | 06 | `06-pageindex.html` | PageIndex 代码精读（`../PageIndex`）：无向量推理式树搜索 |
 | 07 | `07-frontier.html` | 前沿：Self-RAG/CRAG、HippoRAG、ColPali、agentic RAG、记忆系统 |
-| 08 | `08-practice.html` | 本地实战（`../gbrain` `../MiroFish`）：五仓库对照与选型决策图 |
+| 08 | `08-practice.html` | 本地实战（`../gbrain` `../MiroFish` `../ragflow`）：仓库对照、RAGFlow 工程集成拆解与选型决策图 |
 | 09 | `09-industry.html` | 工业界产品拆解：Manus 上下文工程、Kimi agentic RL 搜索、豆包法条场景与火山引擎知识库栈、法律垂直 RAG 对照 |
 | 10 | `10-recent.html` | 2025–2026 编年：deep research 普及、RL 学检索谱系、记忆系统演化、context engineering 学科化、Agent+Wiki 专题（DeepWiki / Karpathy llm-wiki）（含 2026 上半年实时调研） |
 

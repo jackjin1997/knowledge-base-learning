@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>08 · 本地实战与选型 —— gbrain、MiroFish 与五仓库对照 · 知识库学习</title>
+<title>08 · 本地实战与选型 —— gbrain、MiroFish、RAGFlow 与仓库对照 · 知识库学习</title>
 <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
@@ -15,6 +15,7 @@
   <ol>
     <li><a href="#gbrain">gbrain：零 LLM 的混合检索</a></li>
     <li><a href="#mirofish">MiroFish：图谱作为集体记忆</a></li>
+    <li><a href="#ragflow">RAGFlow：全书技术的集成商</a></li>
     <li><a href="#compare">五仓库同轴对照</a></li>
     <li><a href="#decide">选型决策指南</a></li>
     <li><a href="#build">动手路线图</a></li>
@@ -37,13 +38,14 @@
 </nav>
 <main>
 <header class="hero">
-  <div class="kicker">Chapter 08 · Practice · ../gbrain ../MiroFish</div>
+  <div class="kicker">Chapter 08 · Practice · ../gbrain ../MiroFish ../ragflow</div>
   <h1>本地实战与选型：两个生产系统，一张决策图</h1>
-  <p class="lead">前面的章节讲了「学术界怎么设计」，本章看 workspace 里两个真实系统怎么取舍：gbrain 用零 LLM 的图替代 NER，MiroFish 把时序图谱当 agent 群体的记忆。最后把五个仓库放到同一根轴上，给出选型指南。</p>
+  <p class="lead">前面的章节讲了「学术界怎么设计」，本章看 workspace 里的真实系统怎么取舍：gbrain 用零 LLM 的图替代 NER，MiroFish 把时序图谱当 agent 群体的记忆，RAGFlow 把全书技术集成为一个产品。最后把仓库放到同一根轴上，给出选型指南。</p>
   <div class="pills">
     <span class="pill">gbrain <b>P@5 18→49.1</b></span>
     <span class="pill">MiroFish <b>Zep 时序 KG</b></span>
-    <span class="pill">五仓库 <b>同轴对照</b></span>
+    <span class="pill">RAGFlow <b>工程集成商</b></span>
+    <span class="pill">仓库 <b>同轴对照</b></span>
   </div>
 </header>
 
@@ -109,8 +111,33 @@
   </div>
 </section>
 
+<section id="ragflow">
+  <h2><span class="n">§3</span>RAGFlow：把全书技术装进一个产品（../ragflow）</h2>
+  <p>RAGFlow（infiniflow，2026-07 主分支已克隆到本 workspace）与前两个项目不同：它不是某一族方案的代表，而是<b>把本教程各章技术做成一个开箱即用产品的工程集成商</b>。用它来检验全书的体系最合适——每一章都能在它的目录树里找到对应模块：</p>
+  <table>
+    <tr><th>教程章节</th><th>RAGFlow 对应模块</th><th>工程口径的差异</th></tr>
+    <tr><td>第 2 章 全链路</td><td><code>rag/nlp/</code> 混合检索 + 多供应商 embedding/rerank</td><td class="vs">融合<b>不是 RRF 而是加权求和</b>（<code>weighted_sum, weights=0.05,0.95</code>，rag/nlp/search.py:210）——默认向量占 95%，可配置但需调优；另有向量空结果时降 min_match 重试的降级策略</td></tr>
+    <tr><td>第 3 章 解析</td><td><code>deepdoc/</code>：YOLOv10 布局（10 类）+ TSR 表格结构（5 标签→HTML）+ 表格自动旋转</td><td class="vs">管线派自研为主，2025.10 起同时集成 MinerU/Docling 作可选后端——与第 3 章「两级路由」思路一致</td></tr>
+    <tr><td>第 4、5 章 图族</td><td><code>rag/graphrag/</code> 双轨：light/（注明源自微软 GraphRAG，带 gleaning）+ general/（Leiden 社区 + 社区报告）</td><td class="vs">一个产品同时装了第 4、5 章两条路线，按知识库配置切换</td></tr>
+    <tr><td>第 6 章 树族</td><td><code>rag/svr/task_executor_refactor/raptor_service.py</code></td><td class="vs">RAPTOR 支持 <b>file / dataset 两级</b>（:134-141）——跨文件聚合树是教程未覆盖的扩展</td></tr>
+    <tr><td>第 7 章 agentic / 记忆</td><td><code>agent/</code> Canvas DSL 25+ 组件（2026 新增 Browser 自动化组件）；<code>memory/</code> 初代记忆模块</td><td class="vs">memory 消息带 <code>valid_at / invalid_at / forget_at</code> 字段（messages.py:34-120）——时序 + 遗忘的雏形，呼应第 7 章 Graphiti 的事实生命周期</td></tr>
+    <tr><td>第 10 章 MCP 化</td><td><code>mcp/server/</code>：知识库经 SSE/HTTP 暴露为 MCP 工具，带 LRU+TTL 元数据缓存</td><td class="vs">「检索变成 agent 工具」的产品落地——外部 agent（如 Claude）直接调它检索</td></tr>
+  </table>
+  <h3>它真正的新东西</h3>
+  <ul>
+    <li><b>模板化 chunking</b>（<code>rag/app/</code> 12 种）：naive/paper/laws/manual/book/resume/qa/table 各一个专用切分器——法律按条款序号切、手册按目录层级切、简历走 YOLOv10 布局 + 并行 LLM 抽 30+ 字段（resume.py:92-150）。这把第 2 章「document-based chunking」推到极致：<b>切分策略跟着文档类型走，而不是一套参数打天下</b>。</li>
+    <li><b>Entity Pool 查询改写</b>（rag/graphrag/search.py:46-54）：改写 query 前先从图里采样已有实体类型作 <code>TYPE_POOL</code> 注入 prompt——用图的既有词汇约束 LLM，降低改写幻觉。第 2 章查询变换 + 第 5 章图检索的一个精巧组合。</li>
+    <li><b>索引期 LLM 增强</b>：Auto-keyword / Auto-question 为每个 chunk 生成关键词与「它能回答什么问题」——与 Anthropic contextual retrieval 同思路的另一种实现（问题比语境前缀更贴近查询分布）。</li>
+    <li><b>Python→Go 迁移</b>（<code>internal/</code>）：解析热路径用 Go + CGO 绑定 pdfium 等原生库重写，Python 保留业务编排——生产 RAG 引擎的性能演化方向。</li>
+  </ul>
+  <div class="box tip">
+    <div class="t"><span class="ic">定位</span>什么时候选它</div>
+    <p>要「两周内上线一个带 UI、带权限、文档类型杂」的企业知识库时，RAGFlow 这类一体化引擎是合理起点——本教程教你的是打开它每个配置项时知道自己在调什么（融合权重、chunk 模板、GraphRAG 开关、RAPTOR 层级）。反过来，需要极致定制（gbrain 式领域特化）或研究新范式时，一体化引擎的抽象反而碍事。</p>
+  </div>
+</section>
+
 <section id="compare">
-  <h2><span class="n">§3</span>五仓库同轴对照</h2>
+  <h2><span class="n">§4</span>五仓库同轴对照</h2>
   <p>把 workspace 里五个项目放到同一组轴上——它们几乎不重叠，恰好铺满了设计空间：</p>
   <table>
     <tr><th></th><th>graphrag</th><th>LightRAG</th><th>PageIndex</th><th>gbrain</th><th>MiroFish</th></tr>
@@ -130,7 +157,7 @@
 </section>
 
 <section id="decide">
-  <h2><span class="n">§4</span>选型决策指南</h2>
+  <h2><span class="n">§5</span>选型决策指南</h2>
   <figure class="diagram">
     <svg viewBox="0 0 720 430" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
       <defs><marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
@@ -179,7 +206,7 @@
 </section>
 
 <section id="build">
-  <h2><span class="n">§5</span>动手路线图</h2>
+  <h2><span class="n">§6</span>动手路线图</h2>
   <p>把学习转成肌肉记忆的四步，都用本 workspace 的仓库：</p>
   <div class="flow">
     <div class="step"><div class="dot">1</div><div class="body"><b>跑通对照实验（半天）</b><div class="d">LightRAG 同一批文档跑 <code>naive</code> vs <code>hybrid</code> vs <code>mix</code> 三种 mode，观察上下文差异——一个仓库内置了向量/图两条路线的 A/B 环境。</div></div></div>
@@ -194,10 +221,11 @@
 </section>
 
 <section id="refs" class="refs">
-  <h2><span class="n">§6</span>参考资料</h2>
+  <h2><span class="n">§7</span>参考资料</h2>
   <ul>
     <li><span class="rt">gbrain 代码与数字</span> — 本地检出 <code>../gbrain</code>（2026-07）：P@5 18→49.1、四层 RRF、成本模式等均出自仓库 README / BrainBench 文档与源码（src/core/search/、src/core/chunkers/、src/core/link-extraction.ts）</li>
     <li><span class="rt">MiroFish 代码</span> — 本地检出 <code>../MiroFish</code>（2026-07）：backend/app/services/（ontology_generator / graph_builder / report_agent / zep_tools）</li>
+    <li><span class="rt">RAGFlow 代码</span> — 本地检出 <code>../ragflow</code>（infiniflow/ragflow，2026-07 浅克隆）：rag/nlp/search.py（加权融合）、rag/app/（模板 chunker）、rag/graphrag/、raptor_service.py、agent/、memory/；上游：<a href="https://github.com/infiniflow/ragflow">github.com/infiniflow/ragflow</a></li>
     <li><span class="rt">Zep / Graphiti（MiroFish 的图谱底座）</span> — <a href="https://arxiv.org/abs/2501.13956">arxiv.org/abs/2501.13956</a>；<a href="https://github.com/getzep/graphiti">github.com/getzep/graphiti</a></li>
     <li><span class="rt">OASIS（MiroFish 的模拟引擎）</span> — CAMEL-AI. <a href="https://github.com/camel-ai/oasis">github.com/camel-ai/oasis</a></li>
     <li><span class="rt">ZeroEntropy 重排模型（gbrain 默认）</span> — <a href="https://www.zeroentropy.dev/">zeroentropy.dev</a>（zerank-2）</li>
