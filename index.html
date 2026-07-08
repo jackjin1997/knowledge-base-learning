@@ -33,13 +33,14 @@
     <li><a href="08-practice.html">本地实战与选型</a></li>
     <li><a href="09-industry.html">工业界产品拆解</a></li>
     <li><a href="10-recent.html">2025–26 编年</a></li>
+    <li><a href="11-background.html">自维护知识库</a></li>
   </ol>
 </nav>
 <main>
 <header class="hero">
   <div class="kicker">knowledge-base-learning</div>
   <h1>知识库系统学习地图</h1>
-  <p class="lead">一套面向 agent 开发者的 RAG 深度教程：10 章覆盖历史脉络、全链路机制、文档解析、图/树两族结构化方案的代码级精读、前沿趋势、本 workspace 五个真实仓库的实战对照、Manus / Kimi / 豆包三个成熟产品的路线拆解，以及 2025–2026 逐月编年（含 2026 上半年实时调研）。</p>
+  <p class="lead">一套面向 agent 开发者的 RAG 深度教程：11 章覆盖历史脉络、全链路机制、文档解析、图/树两族结构化方案的代码级精读、前沿趋势、本 workspace 真实仓库的实战对照、Manus / Kimi / 豆包三个成熟产品的路线拆解、2025–2026 逐月编年，以及自维护知识库（wiki / 做梦 / 睡眠计算）这一新成形的后台层。</p>
   <div class="pills">
     <span class="pill">代码精读 <b>graphrag · LightRAG · PageIndex · gbrain · MiroFish</b></span>
     <span class="pill">语言 <b>中文</b></span>
@@ -60,7 +61,7 @@
 <section id="atlas">
   <h2><span class="n">§2</span>一图总览</h2>
   <figure class="diagram">
-    <svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+    <svg viewBox="0 0 720 412" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
       <defs><marker id="arI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
       <!-- base layer -->
       <rect x="15" y="270" width="690" height="54" rx="10" fill="#fbf7ee" stroke="#8a6d3b"/>
@@ -83,10 +84,10 @@
       <text x="360" y="133" text-anchor="middle" font-size="10.5" fill="#5c574f">RAPTOR：聚类摘要树</text>
       <text x="360" y="149" text-anchor="middle" font-size="10.5" fill="#5c574f">长文档 · 可解释 · 无向量</text>
       <rect x="485" y="74" width="220" height="90" rx="10" fill="#fff" stroke="#2b5f8a"/>
-      <text x="595" y="97" text-anchor="middle" font-size="12" font-weight="800" fill="#2b5f8a">视觉族 + 记忆（第 7 章）</text>
+      <text x="595" y="97" text-anchor="middle" font-size="12" font-weight="800" fill="#2b5f8a">视觉族（第 3、7 章）</text>
       <text x="595" y="117" text-anchor="middle" font-size="10.5" fill="#5c574f">ColPali 免解析视觉检索</text>
-      <text x="595" y="133" text-anchor="middle" font-size="10.5" fill="#5c574f">mem0 / Letta / Graphiti</text>
-      <text x="595" y="149" text-anchor="middle" font-size="10.5" fill="#5c574f">时序 KG：事实有生命周期</text>
+      <text x="595" y="133" text-anchor="middle" font-size="10.5" fill="#5c574f">DeepSeek-OCR 光学压缩</text>
+      <text x="595" y="149" text-anchor="middle" font-size="10.5" fill="#5c574f">图表 / 扫描件的默认解</text>
       <!-- agentic top -->
       <rect x="145" y="8" width="430" height="42" rx="21" fill="#fdf7f2" stroke="#b5451f" stroke-width="1.5"/>
       <text x="360" y="34" text-anchor="middle" font-size="12.5" font-weight="800" fill="#b5451f">屋顶：Agentic RAG（第 7、8 章）—— 模型决定调用哪个、调用几次</text>
@@ -97,8 +98,13 @@
       <line x1="250" y1="72" x2="290" y2="54" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
       <line x1="360" y1="72" x2="360" y2="54" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
       <line x1="470" y1="72" x2="430" y2="54" stroke="#5c574f" stroke-width="1.3" marker-end="url(#arI)"/>
+      <!-- night shift band -->
+      <rect x="15" y="338" width="690" height="62" rx="10" fill="#f6f4fa" stroke="#5b4a8a" stroke-width="1.5"/>
+      <text x="360" y="362" text-anchor="middle" font-size="12.5" font-weight="800" fill="#5b4a8a">夜班：自维护后台（第 11 章）—— 楼描述「请求时」，这一层发生在「请求之间」</text>
+      <text x="360" y="382" text-anchor="middle" font-size="10.5" fill="#5c574f">wiki ingest/lint · sleep-time 记忆巩固 · daydreaming · 经验→技能蒸馏 · 遗忘 —— 共享状态底座：mem0 / Letta / Graphiti 时序 KG（第 7 章 §6）</text>
+      <line x1="360" y1="326" x2="360" y2="336" stroke="#5b4a8a" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#arI)"/>
     </svg>
-    <figcaption>知识库系统的四层楼：解析是地基，管道是主干，图/树/视觉是针对特定失败模式的专门楼层，agentic 是把它们统一调度的屋顶。第 1 章讲这栋楼怎么盖起来的（历史），第 8 章教你按需求选楼层（选型）。</figcaption>
+    <figcaption>知识库系统 = 白班大楼 + 夜班后台。楼的四层（解析地基 → 管道主干 → 图/树/视觉楼层 → agentic 屋顶）描述一次请求内知识怎么流动；夜班（第 11 章）在请求之间综合、体检、重组知识。与第 1 章「五族」的对应：楼层 ≈ 向量/图/树/视觉四族按架构位置排布，agentic 族是正交的屋顶。第 1 章讲这栋楼怎么盖起来的（历史），第 8 章教你按需求选楼层（选型）。</figcaption>
   </figure>
 </section>
 
@@ -115,6 +121,7 @@
     <a class="chap" href="08-practice.html"><span class="no">CH 08 · 实战</span><div class="h">本地实战与选型</div><p>gbrain 零 LLM 四路混合检索、MiroFish 时序图谱集体记忆；五仓库同轴对照；失败模式驱动的选型决策图；动手路线。</p><div class="meta">../gbrain ../MiroFish · 30 分钟</div></a>
     <a class="chap" href="09-industry.html"><span class="no">CH 09 · 产品拆解</span><div class="h">工业界产品拆解</div><p>Manus 上下文工程六原则、Kimi 长上下文 + 端到端 RL 搜索、豆包法条场景解剖与火山引擎知识库栈；法律垂直 RAG 对照。</p><div class="meta">Manus / Kimi / 豆包 · 30 分钟</div></a>
     <a class="chap" href="10-recent.html"><span class="no">CH 10 · 编年</span><div class="h">2025–2026 编年</div><p>RAG 被吸收的两年：deep research 普及、RL 学检索谱系、记忆系统演化、context engineering 学科化——逐月钉在时间线上，含 2026 上半年实时调研。</p><div class="meta">2025.01–2026.07 · 35 分钟</div></a>
+    <a class="chap" href="11-background.html"><span class="no">CH 11 · 新层</span><div class="h">自维护知识库</div><p>请求之间的知识：agentic wiki 品类、Gwern Daydreaming、Letta 睡眠计算、Claude Dreaming 产品化——后台认知层成形，附体系边界声明。</p><div class="meta">Wiki · Dream · Sleep-time · 30 分钟</div></a>
   </div>
 </section>
 

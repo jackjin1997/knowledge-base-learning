@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>11 · 自维护知识库 —— Wiki、做梦与睡眠计算 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本章</div>
+  <ol>
+    <li><a href="#thesis">论点：请求之间的知识</a></li>
+    <li><a href="#wiki">Wiki 一族：可读写的知识底座</a></li>
+    <li><a href="#daydream">Daydreaming：思想源头</a></li>
+    <li><a href="#sleep">睡眠计算：机制验证</a></li>
+    <li><a href="#product">Dreaming 产品化</a></li>
+    <li><a href="#academic">学术谱系与命名</a></li>
+    <li><a href="#position">体系归位：第五个元素</a></li>
+    <li><a href="#boundary">体系边界声明</a></li>
+    <li><a href="#refs">参考资料</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+    <li><a href="11-background.html" class="cur">自维护知识库</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Chapter 11 · Background Cognition</div>
+  <h1>自维护知识库：Wiki、做梦与睡眠计算</h1>
+  <p class="lead">前十章描述的一切——解析、检索、图树索引、agentic 调度——都发生在「一次请求的生命周期内」。本章讲请求之间的事：没人提问的时候，知识自己在被综合、体检、重组和遗忘。这一层在 2025–2026 从散点收敛成了体系，Anthropic 给它起的名字叫「做梦」。</p>
+  <div class="pills">
+    <span class="pill">思想 <b>Gwern Daydreaming</b></span>
+    <span class="pill">机制 <b>Letta Sleep-time</b></span>
+    <span class="pill">产品 <b>Claude Dreaming</b></span>
+    <span class="pill">底座 <b>Agentic Wiki</b></span>
+  </div>
+</header>
+
+<section id="thesis">
+  <h2><span class="n">§1</span>论点：知识系统有两个时钟</h2>
+  <p>把本教程讲过的所有技术按「什么时候运行」分类，会发现它们全挤在一个时钟上：</p>
+  <table>
+    <tr><th></th><th>请求时（query-time）</th><th>请求之间（idle-time）</th></tr>
+    <tr><td><b>发生什么</b></td><td>解析、检索、融合、重排、生成——第 2–6 章的全部</td><td>综合、去重、解决矛盾、蒸馏技能、遗忘过期事实</td></tr>
+    <tr><td><b>索引期算什么</b></td><td class="vs">GraphRAG 社区报告、RAPTOR 摘要树、contextual retrieval 是「写入时综合」——但都是<b>一次性</b>的，建完不再自我更新</td><td class="vs">这一层是<b>持续</b>的：知识库像生物一样有新陈代谢</td></tr>
+    <tr><td><b>成本模型</b></td><td>延迟敏感，用户在等</td><td class="good">闲时算力，便宜、可批量、可中断</td></tr>
+    <tr><td><b>2026 的代表</b></td><td>本教程第 2–6 章</td><td>agentic wiki 的 lint、Letta sleep-time、Claude Dreaming</td></tr>
+  </table>
+  <div class="box key">
+    <div class="t"><span class="ic">核心</span>为什么这是独立的一层</div>
+    <p>人脑的类比很直接：白天经历（请求时），夜间海马体回放并把短期记忆巩固到新皮层（闲时）。第 7 章的 HippoRAG 借了海马体的<b>检索</b>机制，这一章的系统借的是海马体的<b>巩固</b>机制。没有夜班的知识库只会越积越乱——chunk 冗余、事实互相矛盾、昨天综合出的认识今天重算一遍。第 10 章 Karpathy 对 RAG「没有积累」的批评，根子就在缺这一层。</p>
+  </div>
+</section>
+
+<section id="wiki">
+  <h2><span class="n">§2</span>Wiki 一族：自维护的知识底座</h2>
+  <p>第 10 章 §6 讲了 wiki 热潮的来龙去脉（DeepWiki 产品线 + Karpathy llm-wiki），这里补上体系视角：<b>wiki 是「后台认知」最朴素的载体</b>——三个操作里 ingest 和 lint 本来就是后台作业。查证结论：「agentic wiki」不是某个明星项目，而是 llm-wiki 之后涌现的一个品类，值得看的两个实体：</p>
+  <div class="two">
+    <div class="mini"><div class="h">Onyx agent-wiki（YC）</div><p>最产品级的实现：Markdown + 文件系统 + Git 三件套，agent 经 MCP 读写；页面可携带 <b>update policy</b>（「保持简洁」「不许动 SLA 表」）——把「哪些知识允许 agent 自动改写」变成页面级配置，直面自噬风险。</p></div>
+    <div class="mini"><div class="h">agentwiki.org</div><p>自述受 llm-wiki 启发：raw sources 被拆成原子页面 + 语义嵌入交叉引用（6400+ 页），提供 JSON-RPC 读写接口——一个「为 agent 而非人类读者设计」的公共 wiki 样本。</p></div>
+  </div>
+  <p class="sub">与本地仓库的呼应：gbrain 的零 LLM 链接抽取（第 8 章 §1）解决的是「wiki 的边怎么来」；RAGFlow 的 memory 模块（第 8 章 §3）如果长出页面和双链，就是一体化引擎补上这一层的信号。</p>
+</section>
+
+<section id="daydream">
+  <h2><span class="n">§3</span>Daydreaming：思想源头（Gwern, 2025.07）</h2>
+  <p>「做梦」这条线的概念源头是 Gwern 的长文《LLM Daydreaming》。他的出发点是一个尖锐观察：<b>LLM 知识渊博却从未产出真正的科学突破</b>，因为缺三样人类有的东西——从经验学习的能力（权重冻结）、持续的后台思考、以及「默认模式网络」（DMN，人走神时自发产生洞见的脑区）。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="arD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
+      <rect x="15" y="70" width="140" height="60" rx="9" fill="#fff" stroke="#e7e1d6"/>
+      <text x="85" y="96" text-anchor="middle" font-size="12" font-weight="700">记忆库</text>
+      <text x="85" y="114" text-anchor="middle" font-size="10" fill="#5c574f">随机抽取概念对</text>
+      <line x1="157" y1="100" x2="187" y2="100" stroke="#5c574f" stroke-width="1.4" marker-end="url(#arD)"/>
+      <rect x="190" y="70" width="150" height="60" rx="9" fill="#fdf7f2" stroke="#b5451f"/>
+      <text x="265" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#b5451f">Generator</text>
+      <text x="265" y="110" text-anchor="middle" font-size="10" fill="#5c574f">探索非显然联系</text>
+      <text x="265" y="123" text-anchor="middle" font-size="10" fill="#5c574f">类比 · 隐喻 · 矛盾</text>
+      <line x1="342" y1="100" x2="372" y2="100" stroke="#5c574f" stroke-width="1.4" marker-end="url(#arD)"/>
+      <rect x="375" y="70" width="150" height="60" rx="9" fill="#f2f8f7" stroke="#1f6f6b"/>
+      <text x="450" y="92" text-anchor="middle" font-size="12" font-weight="700" fill="#1f6f6b">Critic</text>
+      <text x="450" y="110" text-anchor="middle" font-size="10" fill="#5c574f">新颖性 / 连贯性 / 有用性</text>
+      <text x="450" y="123" text-anchor="middle" font-size="10" fill="#5c574f">绝大多数被丢弃</text>
+      <line x1="527" y1="100" x2="557" y2="100" stroke="#5c574f" stroke-width="1.4" marker-end="url(#arD)"/>
+      <rect x="560" y="70" width="145" height="60" rx="9" fill="#fbf7ee" stroke="#8a6d3b"/>
+      <text x="632" y="96" text-anchor="middle" font-size="12" font-weight="700" fill="#8a6d3b">洞见写回记忆</text>
+      <text x="632" y="114" text-anchor="middle" font-size="10" fill="#5c574f">成为未来组合的新种子</text>
+      <path d="M 632 132 Q 632 185 85 185 Q 30 185 40 132" fill="none" stroke="#8a6d3b" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arD)"/>
+      <text x="360" y="175" text-anchor="middle" font-size="10.5" fill="#8a6d3b">复利循环：洞见越多，可组合的概念对越多</text>
+      <text x="360" y="30" text-anchor="middle" font-size="12.5" font-weight="800" fill="#1c1a17">Day-Dreaming Loop（DDL）—— 依赖 generator-verifier gap：判别比生成容易</text>
+    </svg>
+    <figcaption>Gwern 的 DDL 机制。与第 7 章 Self-RAG 的关键区别：Self-RAG 的反思发生在回答问题的过程中，DDL 完全脱离任何用户请求——它是无目的的。</figcaption>
+  </figure>
+  <p>两个反直觉的论断使这篇文章超出「又一个 agent 架构」：</p>
+  <ul>
+    <li><b>Daydreaming tax</b>：绝大多数概念组合一无所获（他估计有效洞见比例 20:1 甚至更差），开启 DDL 可能使成本高 200 倍。这反过来解释了当前 LLM 为何「经济」——<b>它们靠回避新颖性生成实现商业可行</b>。</li>
+    <li><b>数据墙的出路</b>：昂贵的「做梦 AI」为下一代模型生成专有训练数据，且构成对抗蒸馏的护城河——有价值的洞见来自「没人会想到去问」的组合，蒸馏者无从模仿。</li>
+  </ul>
+</section>
+
+<section id="sleep">
+  <h2><span class="n">§4</span>睡眠计算：机制验证（Letta, 2025.04 → 2026.06）</h2>
+  <p>Gwern 提供思想，Letta（MemGPT 团队）提供了可测量的机制。《Sleep-time Compute》论文（arXiv:2504.13171）的核心结果：<b>离线预思考上下文，达到同等准确率所需的 test-time 算力降约 5 倍</b>——把「夜班有用」从直觉变成了数字。</p>
+  <p>产品架构是一个干净的职责分离：</p>
+  <pre><code><span class="cm"># Letta sleep-time 双 agent 架构（docs.letta.com）</span>
+primary agent     面向用户实时对话 —— 但<b>无权编辑自己的核心记忆</b>
+sleep-time agent  后台异步运行，独占记忆编辑工具：
+                  整合碎片记忆 · 跨会话找模式 · 去重 · 归档过时信息</code></pre>
+  <p>「对话的 agent 不许写记忆」这个约束值得细品：它把记忆质量从「对话副产品」变成「专门进程的职责」——正是操作系统里前台进程与 GC 的分工。2026.06 Letta 更进一步发布《Memory Models: Towards Agents That Learn》：训练<b>专门在睡眠期生成记忆的模型</b>（memory-native RL），并正式把这个过程命名为 <b>agent dreaming</b>，同时给出一个激进预言：「最终世界上绝大多数推理负载将由 sleep-time compute 驱动。」</p>
+</section>
+
+<section id="product">
+  <h2><span class="n">§5</span>Dreaming 产品化（2026 上半年）</h2>
+  <p>你印象里「做梦很火」的那波热度，主要来自 2026 年 5 月 Anthropic 的动作——这一层从论文变成了旗舰产品功能：</p>
+  <table>
+    <tr><th>系统</th><th>机制</th><th>备注</th></tr>
+    <tr><td><b>Claude Dreaming / Dreams</b><br>（Anthropic，2026.05.06 发布）</td><td>定时离线读取记忆库 + 最多 100 个历史会话 transcript → 重组记忆：去重合并、矛盾按最新值解决、剪除失效引用。官方明确类比 REM 睡眠记忆巩固</td><td class="vs">research preview；法律 AI 公司 Harvey 称开启后任务完成率提升约 6 倍（<b>厂商自报，未独立验证</b>）</td></tr>
+    <tr><td><b>Claude Code「AutoDream」</b></td><td>第三方描述：四阶段（orientation → gather signal → consolidation → prune &amp; index），维持 MEMORY.md ≤200 行，每 24 小时且 5+ 会话后触发</td><td class="vs"><b>来源为第三方博客与社区复刻 skill</b>，非官方文档，细节谨慎采信</td></tr>
+    <tr><td><b>Auto-Dreamer</b>（学术，arXiv:2605.20616）</td><td>基于互补学习系统（CLS）理论：会话内快速记忆获取与跨会话慢速巩固解耦，学一个离线巩固器执行多步工具调用（搜记忆→溯源轨迹→合成新条目）</td><td class="vs">ScienceWorld 超最强基线 7 分且活跃记忆库<b>小 12 倍</b>；零迁移到 ALFWorld/WebArena</td></tr>
+    <tr><td><b>生态扩散</b></td><td>Xiaomi MiMo Code 内置每周 dream cycle；NousResearch hermes-agent 有 Auto Dream 需求单</td><td class="vs">从旗舰到开源工具链的常规扩散路径</td></tr>
+  </table>
+  <div class="box warn">
+    <div class="t"><span class="ic">辨析</span>此 Dreamer 非彼 Dreamer</div>
+    <p>搜「dream + AI」会撞上 Hafner 的 <b>Dreamer 世界模型</b>谱系（DreamerV3 → Google Genie 3 / Project Genie，Waymo 用它模拟极端路况）——那是 RL 里「在想象的轨迹中训练策略」，与 agent 记忆巩固是<b>不同谱系</b>。两条线目前只在「在想象中学习」的概念层面有交汇（如 Qwen-AgentWorld 的语言世界模型——这个联系属推断）。</p>
+  </div>
+</section>
+
+<section id="academic">
+  <h2><span class="n">§6</span>学术谱系与命名现状</h2>
+  <p>这一层的学术工作在 2025–2026 密集成形，按目的分三支：</p>
+  <table>
+    <tr><th>分支</th><th>代表工作</th><th>做什么</th></tr>
+    <tr><td><b>睡眠巩固</b></td><td>Auto-Dreamer（2605.20616）、Do LMs Need Sleep?（2605.26099）、TiMem 时序分层巩固（2601.02845）</td><td class="vs">把碎片经验重组为持久记忆</td></tr>
+    <tr><td><b>经验 → 技能</b></td><td>Voyager（技能库开山）、ExpeL（轨迹→自然语言 insight）、Memp 程序性记忆蒸馏（2508.06433）、MemSkill（2602.02474）、ExpWeaver（2606.01041）</td><td class="vs">把「做过的事」蒸馏成「会做的事」——闲时把轨迹变成可复用技能</td></tr>
+    <tr><td><b>遗忘</b></td><td>Learning to Forget（2603.14517）；工程侧：RAGFlow memory 的 forget_at 字段、gbrain 软删除</td><td class="vs">知识库的减法——不遗忘的记忆最终不可检索</td></tr>
+  </table>
+  <p><b>建制化证据</b>：ICLR 2026 已出现 MemAgents workshop 提案。<b>命名现状</b>：尚无统一学科名——最接近通名的是「sleep-time compute」（论文原词）和「agent dreaming」（Letta + Anthropic 双重背书，2026 上半年的事实通称）；「background cognition」未固化。本章标题用「自维护知识库」取其功能而非流行语。</p>
+</section>
+
+<section id="position">
+  <h2><span class="n">§7</span>体系归位：四层楼 + 夜班</h2>
+  <p>把这一层放回学习地图（index 的全景图已同步更新）：</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'PingFang SC',sans-serif">
+      <defs><marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c574f"/></marker></defs>
+      <text x="200" y="26" text-anchor="middle" font-size="13" font-weight="800" fill="#b5451f">请求时（白班）：第 2–8 章的大楼</text>
+      <rect x="40" y="40" width="320" height="34" rx="8" fill="#fdf7f2" stroke="#b5451f"/><text x="200" y="62" text-anchor="middle" font-size="11.5">屋顶：agentic 调度</text>
+      <rect x="40" y="80" width="320" height="34" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="200" y="102" text-anchor="middle" font-size="11.5">楼层：图 / 树 / 视觉索引</text>
+      <rect x="40" y="120" width="320" height="34" rx="8" fill="#fff" stroke="#e7e1d6"/><text x="200" y="142" text-anchor="middle" font-size="11.5">主干：hybrid 检索 + 重排管道</text>
+      <rect x="40" y="160" width="320" height="34" rx="8" fill="#fbf7ee" stroke="#8a6d3b"/><text x="200" y="182" text-anchor="middle" font-size="11.5">地基：文档解析</text>
+      <text x="530" y="26" text-anchor="middle" font-size="13" font-weight="800" fill="#5b4a8a">请求之间（夜班）：第 11 章</text>
+      <rect x="400" y="40" width="270" height="154" rx="10" fill="#f6f4fa" stroke="#5b4a8a" stroke-width="1.5"/>
+      <text x="535" y="68" text-anchor="middle" font-size="11.5" fill="#1c1a17">wiki ingest / lint（综合与体检）</text>
+      <text x="535" y="92" text-anchor="middle" font-size="11.5" fill="#1c1a17">sleep-time：整合 · 去重 · 解决矛盾</text>
+      <text x="535" y="116" text-anchor="middle" font-size="11.5" fill="#1c1a17">daydreaming：组合概念产出洞见</text>
+      <text x="535" y="140" text-anchor="middle" font-size="11.5" fill="#1c1a17">经验 → 技能蒸馏</text>
+      <text x="535" y="164" text-anchor="middle" font-size="11.5" fill="#1c1a17">遗忘与归档</text>
+      <path d="M 362 100 Q 385 100 398 100" fill="none" stroke="#5c574f" stroke-width="1.5" marker-end="url(#arP)"/>
+      <path d="M 398 150 Q 385 150 362 150" fill="none" stroke="#5c574f" stroke-width="1.5" marker-end="url(#arP)"/>
+      <text x="380" y="88" text-anchor="middle" font-size="9.5" fill="#5c574f">经验流出</text>
+      <text x="380" y="168" text-anchor="middle" font-size="9.5" fill="#5c574f">更好的知识流回</text>
+      <rect x="40" y="222" width="630" height="58" rx="10" fill="#fff" stroke="#e7e1d6"/>
+      <text x="355" y="246" text-anchor="middle" font-size="11.5" fill="#1c1a17">共享的状态底座：记忆系统（第 7 章 §6）—— mem0 / Letta / Graphiti 时序 KG / wiki 文件</text>
+      <text x="355" y="266" text-anchor="middle" font-size="10.5" fill="#5c574f">白班读写它，夜班维护它——两个时钟围绕同一份状态</text>
+    </svg>
+    <figcaption>修订后的完整体系：白班大楼（请求时）+ 夜班进程（请求之间）+ 共享状态底座。第 7 章的记忆系统由此获得更准确的位置：它不是「另一个楼层」，而是两班共用的地基下管道。</figcaption>
+  </figure>
+  <p>三点推论：</p>
+  <ul>
+    <li><b>GraphRAG 和 RAPTOR 是「只跑一次的夜班」</b>——社区报告和摘要树本质是离线综合，只是没有持续更新机制。LazyGraphRAG 把综合推回请求时，dreaming 系把综合变成常驻进程：三者是同一权衡轴上的三个点。</li>
+    <li><b>夜班的风险是自噬</b>（第 10 章 §6 的 Nature 2024 论据）：LLM 反复改写自产内容会漂移。工程护栏已经出现——wiki 的 lint、Onyx 的页面级 update policy、Anthropic 的「矛盾按最新值解决」都是对策。</li>
+    <li><b>成本叙事翻转</b>：第 4 章批评 GraphRAG 索引贵，但那是按「一次性建库」算账；如果 Letta 的预言成立（多数推理负载转向 sleep-time），闲时批量算力的定价逻辑将重塑「索引期 vs 查询期」这根贯穿全书的权衡轴。</li>
+  </ul>
+</section>
+
+<section id="boundary">
+  <h2><span class="n">§8</span>体系边界声明：本教程仍未覆盖的</h2>
+  <p>重审全书后，如实列出体系之外的三块（宁可承认没讲，不装作全覆盖）：</p>
+  <table>
+    <tr><th>缺口</th><th>是什么</th><th>为什么重要</th></tr>
+    <tr><td><b>结构化数据检索</b></td><td>NL2SQL / 表格 QA / semantic layer——从数据库而非文档中检索</td><td class="vs">企业知识库常常是「文档 + 数据库」双源；RAGFlow、Coze 都内置 NL2SQL。与本书文档检索是并列的另一根支柱</td></tr>
+    <tr><td><b>RAG 安全</b></td><td>检索内容携带的间接 prompt 注入、权限感知检索（谁能检回什么）、数据渗出</td><td class="vs">生产部署的必答题——检索给了外部内容进入 prompt 的通道，也给了攻击者</td></tr>
+    <tr><td><b>Serving 基础设施</b></td><td>KV-cache 管理（Mooncake，第 9 章一笔带过）、embedding 服务化、索引热更新的工程细节</td><td class="vs">决定同一套架构的成本差一个数量级</td></tr>
+  </table>
+  <p class="sub">需要展开哪一块，可以按第 9、10 章的方式做专项调研补章。</p>
+</section>
+
+<section id="refs" class="refs">
+  <h2><span class="n">§9</span>参考资料</h2>
+  <ul>
+    <li><span class="rt">Gwern《LLM Daydreaming》（思想源头）</span> — <a href="https://gwern.net/ai-daydreaming">gwern.net/ai-daydreaming</a>（2025.07）；HN 讨论：<a href="https://news.ycombinator.com/item?id=44578070">id=44578070</a></li>
+    <li><span class="rt">Sleep-time Compute 论文</span> — Lin, Snell, Packer et al. <a href="https://arxiv.org/abs/2504.13171">arxiv.org/abs/2504.13171</a>；代码：<a href="https://github.com/letta-ai/sleep-time-compute">github.com/letta-ai/sleep-time-compute</a>；架构文档：<a href="https://docs.letta.com/guides/agents/architectures/sleeptime/">docs.letta.com</a></li>
+    <li><span class="rt">Letta Memory Models / agent dreaming 命名</span> — <a href="https://www.letta.com/blog/towards-agents-that-learn/">letta.com/blog/towards-agents-that-learn</a>（2026.06.25）</li>
+    <li><span class="rt">Anthropic Claude Dreaming</span> — Forbes 报道：<a href="https://www.forbes.com/sites/jonmarkman/2026/05/11/claudes-new-dreaming-feature-builds-self-improving-ai-agents/">forbes.com（2026.05.11）</a>；机制详解：<a href="https://www.softpagecms.com/2026/05/23/anthropic-claude-dreaming-agent-memory-consolidation/">softpagecms</a>（Harvey 6× 为厂商自报）</li>
+    <li><span class="rt">AutoDream（第三方描述，谨慎采信）</span> — <a href="https://zenvanriel.com/ai-engineer-blog/claude-code-autodream-memory-consolidation-guide/">zenvanriel.com 指南</a>；社区复刻：<a href="https://github.com/grandamenium/dream-skill">dream-skill</a></li>
+    <li><span class="rt">Auto-Dreamer（CLS 理论）</span> — <a href="https://arxiv.org/abs/2605.20616">arxiv.org/abs/2605.20616</a></li>
+    <li><span class="rt">Agentic wiki 品类</span> — Onyx：<a href="https://github.com/onyx-dot-app/agent-wiki">github.com/onyx-dot-app/agent-wiki</a>；<a href="https://agentwiki.org/">agentwiki.org</a>；<a href="https://github.com/codeverlan/agentic-wiki">codeverlan/agentic-wiki</a></li>
+    <li><span class="rt">学术谱系</span> — Do LMs Need Sleep?：<a href="https://arxiv.org/abs/2605.26099">2605.26099</a>；Learning to Forget：<a href="https://arxiv.org/abs/2603.14517">2603.14517</a>；TiMem：<a href="https://arxiv.org/abs/2601.02845">2601.02845</a>；Memp：<a href="https://arxiv.org/abs/2508.06433">2508.06433</a>；MemSkill：<a href="https://arxiv.org/abs/2602.02474">2602.02474</a>；ExpWeaver：<a href="https://arxiv.org/abs/2606.01041">2606.01041</a>；论文列表：<a href="https://github.com/Shichun-Liu/Agent-Memory-Paper-List">Agent-Memory-Paper-List</a></li>
+    <li><span class="rt">ICLR 2026 MemAgents workshop 提案</span> — <a href="https://openreview.net/pdf?id=U51WxL382H">openreview.net</a></li>
+    <li><span class="rt">趋势综述</span> — Ken Huang, "Why AI Agents Are Starting to Dream"：<a href="https://kenhuangus.substack.com/p/why-ai-agents-are-starting-to-dream">substack（2026.06.13）</a></li>
+    <li><span class="rt">世界模型线（辨析用）</span> — <a href="https://en.wikipedia.org/wiki/Genie_(world_model)">Wikipedia: Genie</a></li>
+  </ul>
+</section>
+
+<div class="pagenav">
+  <a href="10-recent.html"><span class="lbl">← 上一页</span><div class="ti">2025–26 编年</div></a>
+  <a href="index.html" class="next"><span class="lbl">返回 →</span><div class="ti">学习地图</div></a>
+</div>
+<footer>knowledge-base-learning · 基于专项实时调研（2026-07）整理，来源等级已逐条标注</footer>
+</main>
+</div>
+</body>
+</html>
