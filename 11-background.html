@@ -76,6 +76,10 @@
     <div class="mini"><div class="h">agentwiki.org</div><p>自述受 llm-wiki 启发：raw sources 被拆成原子页面 + 语义嵌入交叉引用（6400+ 页），提供 JSON-RPC 读写接口——一个「为 agent 而非人类读者设计」的公共 wiki 样本。</p></div>
   </div>
   <p class="sub">与本地仓库的呼应：gbrain 的零 LLM 链接抽取（第 8 章 §1）解决的是「wiki 的边怎么来」；RAGFlow 的 memory 模块（第 8 章 §3）如果长出页面和双链，就是一体化引擎补上这一层的信号。</p>
+  <div class="box key">
+    <div class="t"><span class="ic">辨析</span>与 PageIndex 的区别：都去向量化，但一个是索引、一个是笔记</div>
+    <p>两者共享「去向量化」表皮——都靠结构 + LLM 推理做<b>导航式检索</b>而非相似度匹配。但内核相反：<b>PageIndex 是给别人写的文档建目录卡</b>——树是从文档无损派生的<b>只读</b>索引，知识永远在原文里，回答时取回原文逐字引用（可溯源到页码，所以敢打财务/法律）；<b>wiki 是自己记笔记</b>——页面本身就是知识，被 LLM 持续改写再创作，原文只是归档原料。三个推论：① 可信度模型相反——要权威引用选 PageIndex 路线，要认知复利选 wiki 路线（代价是自噬风险，见 §7）；② 时钟不同——PageIndex 全在请求时，wiki 的本体（ingest/lint）在请求之间；③ 去向量化只是副产品，agentwiki.org 给页面加语义嵌入并不改变其笔记本性。两者可组合：wiki 的 raw/ 层用 PageIndex 树管理——笔记引用目录卡，目录卡指向原文，这个组合尚无产品化实现。</p>
+  </div>
 </section>
 
 <section id="daydream">
