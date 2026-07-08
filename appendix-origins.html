@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>附录 · 概念溯源 —— 每个概念最早由谁提出 · 知识库学习</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand"><a href="index.html">KB<b>·Learning</b></a></div>
+  <div class="tag">RAG / 知识库系统学习</div>
+  <div class="grp">本页</div>
+  <ol>
+    <li><a href="#how">怎么读这张表</a></li>
+    <li><a href="#deep">深层源头 1945–2012</a></li>
+    <li><a href="#neural">神经检索基础</a></li>
+    <li><a href="#rag">RAG 范式</a></li>
+    <li><a href="#graph">图与树</a></li>
+    <li><a href="#agentic">Agentic、记忆与后台</a></li>
+    <li><a href="#parsing">文档解析</a></li>
+  </ol>
+  <div class="grp">系列</div>
+  <ol class="chapters">
+    <li><a href="index.html">学习地图</a></li>
+    <li><a href="01-history.html">RAG 演进史</a></li>
+    <li><a href="02-pipeline.html">传统 RAG 全链路</a></li>
+    <li><a href="03-parsing.html">文档解析与 OCR</a></li>
+    <li><a href="04-graphrag.html">GraphRAG 精读</a></li>
+    <li><a href="05-lightrag.html">LightRAG 精读</a></li>
+    <li><a href="06-pageindex.html">PageIndex 精读</a></li>
+    <li><a href="07-frontier.html">前沿方案</a></li>
+    <li><a href="08-practice.html">本地实战与选型</a></li>
+    <li><a href="09-industry.html">工业界产品拆解</a></li>
+    <li><a href="10-recent.html">2025–26 编年</a></li>
+    <li><a href="11-background.html">自维护知识库</a></li>
+    <li><a href="appendix-origins.html" class="cur">附录 · 概念溯源</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">Appendix · Origins</div>
+  <h1>概念溯源：每个概念最早由谁提出</h1>
+  <p class="lead">全书核心概念的家谱：最早的提出者（人 + 组织）、年份、原始出处。看完你会发现两件事——这个领域最「新」的想法平均有 30 年历史；而真正的原创大多来自你意想不到的地方（图书馆学、神经科学、1945 年的一篇杂志文章）。</p>
+  <div class="pills">
+    <span class="pill">最早 <b>1945 · Memex</b></span>
+    <span class="pill">最年轻 <b>2026 · Dreaming</b></span>
+    <span class="pill">条目 <b>50+</b></span>
+  </div>
+</header>
+
+<section id="how">
+  <h2><span class="n">§1</span>怎么读这张表</h2>
+  <p>「最早提出」采用三个口径，逐条标注：<b>概念</b>（思想第一次被清晰表述）、<b>术语</b>（这个词第一次被使用/确立）、<b>系统</b>(第一个可运行实现)——三者经常不是同一个人。例如「知识图谱」：语义网络的概念是 1960 年代的，术语的现代含义是 Google 2012 年确立的。全部归属经专项核实（2026-07，10 项存疑项逐条查证原始文献），多口径条目在表内分别注明。</p>
+</section>
+
+<section id="deep">
+  <h2><span class="n">§2</span>深层源头（1945–2012）：这个领域比你以为的老得多</h2>
+  <table>
+    <tr><th>概念</th><th>最早提出</th><th>年份</th><th>出处</th><th>在本教程</th></tr>
+    <tr><td><b>Memex</b>（关联索引的个人知识库）</td><td>Vannevar Bush（美国科学研究与开发办公室主任）</td><td>1945</td><td><a href="https://www.theatlantic.com/magazine/archive/1945/07/as-we-may-think/303881/">《As We May Think》, The Atlantic</a></td><td class="vs">第 10 章：Karpathy 自称 llm-wiki 是 Memex 的复活</td></tr>
+    <tr><td><b>词频统计选摘要</b>（TF 思想）</td><td>Hans Peter Luhn（IBM）</td><td>1957–58</td><td>IBM Journal</td><td class="vs">第 2 章：一切词法检索的起点</td></tr>
+    <tr><td><b>Zettelkasten</b>（双链卡片盒）</td><td>Niklas Luhmann（社会学家，比勒费尔德大学）；卡片笔记法本身更早</td><td>1950s 起</td><td>其 9 万张卡片档案</td><td class="vs">第 10、11 章：A-MEM 与 wiki 双链的思想母体</td></tr>
+    <tr><td><b>语义网络</b></td><td>M. Ross Quillian（卡内基理工，博士论文）</td><td>1966–68</td><td>Semantic Memory</td><td class="vs">第 4、5 章：一切知识图谱的概念祖先</td></tr>
+    <tr><td><b>IDF</b>（逆文档频率）</td><td>Karen Spärck Jones（剑桥大学）</td><td>1972</td><td><a href="https://www.staff.city.ac.uk/~sbrp622/idfpapers/ksj_orig.pdf">"A statistical interpretation of term specificity"</a></td><td class="vs">第 2 章：BM25 的两大支柱之一</td></tr>
+    <tr><td><b>海马体索引理论</b></td><td>Teyler &amp; DiScenna（东北俄亥俄医学院）</td><td>1986</td><td>Behavioral Neuroscience</td><td class="vs">第 7 章：HippoRAG 的命名来源与设计蓝本</td></tr>
+    <tr><td><b>BM25</b></td><td>Stephen Robertson、Steve Walker 等（伦敦城市大学，Okapi 系统）；「BM25」（Best Match 25）之名首现于 Okapi at TREC-3</td><td>1994（TREC-3）</td><td><a href="https://trec.nist.gov/pubs/trec3/papers/city.ps.gz">Okapi at TREC-3</a></td><td class="vs">第 2 章：hybrid 检索的 sparse 支柱，至今未被淘汰</td></tr>
+    <tr><td><b>互补学习系统（CLS）</b></td><td>McClelland、McNaughton、O'Reilly（CMU / 亚利桑那大学）</td><td>1995</td><td>Psychological Review</td><td class="vs">第 11 章：Auto-Dreamer 的理论基础——快获取 + 慢巩固</td></tr>
+    <tr><td><b>Wiki</b></td><td>Ward Cunningham（独立程序员，WikiWikiWeb）</td><td>1995</td><td><a href="http://wiki.c2.com/">wiki.c2.com</a></td><td class="vs">第 10、11 章：整个 agent wiki 浪潮的形态源头</td></tr>
+    <tr><td><b>PageRank / Personalized PageRank</b></td><td>Larry Page &amp; Sergey Brin（斯坦福）；个性化变体由 Taher Haveliwala（斯坦福）发展</td><td>1998 / 2002</td><td><a href="http://ilpubs.stanford.edu:8090/422/">The PageRank Citation Ranking</a></td><td class="vs">第 7 章：HippoRAG 用 PPR 一步完成多跳</td></tr>
+    <tr><td><b>MMR</b>（最大边际相关性，去冗余）</td><td>Jaime Carbonell &amp; Jade Goldstein（CMU）</td><td>1998</td><td>SIGIR '98</td><td class="vs">第 2 章：检索结果多样化的原型</td></tr>
+    <tr><td><b>默认模式网络（DMN）</b></td><td>Marcus Raichle 等（华盛顿大学圣路易斯）</td><td>2001</td><td>PNAS</td><td class="vs">第 11 章：Gwern daydreaming 的神经科学依据</td></tr>
+    <tr><td><b>查询聚焦式摘要（QFS）</b></td><td>NIST DUC 评测任务确立</td><td>2005 前后</td><td>DUC 2005</td><td class="vs">第 4 章：GraphRAG 论文对自身任务的定性</td></tr>
+    <tr><td><b>RRF</b>（倒数排名融合）</td><td>Gordon Cormack、Charles Clarke（滑铁卢大学）、Stefan Büttcher（Google）</td><td>2009</td><td><a href="https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf">SIGIR '09 原文</a></td><td class="vs">第 2 章：hybrid 检索的默认融合公式，k=60 沿用至今</td></tr>
+    <tr><td><b>「知识图谱」术语</b></td><td>术语：Edward W. Schneider（1973，计算机辅助教学）；首个系统研究：R.R. Bakker 博士论文（特文特大学，1987）；现代含义：Google（Amit Singhal）</td><td>1973 / 2012</td><td><a href="https://blog.google/products/search/introducing-knowledge-graph-things-not/">"Things, not strings"</a></td><td class="vs">第 4、5 章</td></tr>
+  </table>
+</section>
+
+<section id="neural">
+  <h2><span class="n">§3</span>神经检索基础（2013–2022）</h2>
+  <table>
+    <tr><th>概念</th><th>最早提出</th><th>年份</th><th>出处</th><th>在本教程</th></tr>
+    <tr><td><b>word2vec</b>（现代词嵌入）</td><td>Tomáš Mikolov 等（Google）；神经语言模型嵌入思想可溯至 Bengio 2003</td><td>2013</td><td><a href="https://arxiv.org/abs/1301.3781">arXiv:1301.3781</a></td><td class="vs">第 2 章：embedding 的起点</td></tr>
+    <tr><td><b>HNSW</b></td><td>Yury Malkov（俄罗斯科学院应用物理研究所）&amp; Dmitry Yashunin（独立研究者）</td><td>2016</td><td><a href="https://arxiv.org/abs/1603.09320">arXiv:1603.09320</a></td><td class="vs">第 2 章：向量索引的事实标准</td></tr>
+    <tr><td><b>IVF + PQ</b>（倒排文件 + 乘积量化）</td><td>倒排文件用于视觉词检索：Sivic &amp; Zisserman "Video Google"（牛津，2003）；通用向量 ANN 形态（IVFADC）：Hervé Jégou、Matthijs Douze、Cordelia Schmid（INRIA）</td><td>2003 / 2011</td><td><a href="https://ieeexplore.ieee.org/document/5432202">TPAMI 2011</a></td><td class="vs">第 2 章：大规模静态语料的索引方案</td></tr>
+    <tr><td><b>FAISS</b></td><td>Facebook AI Research（Johnson、Douze、Jégou）</td><td>2017</td><td><a href="https://arxiv.org/abs/1702.08734">arXiv:1702.08734</a></td><td class="vs">第 2 章：向量检索工程化的分水岭</td></tr>
+    <tr><td><b>Transformer</b></td><td>Vaswani 等（Google Brain / Research）</td><td>2017</td><td><a href="https://arxiv.org/abs/1706.03762">arXiv:1706.03762</a></td><td class="vs">全书一切模型的底座</td></tr>
+    <tr><td><b>BERT 重排（cross-encoder 用于检索）</b></td><td>技术首创：Rodrigo Nogueira &amp; Kyunghyun Cho（NYU，monoBERT）；「cross-encoder」名称：Humeau et al.（Facebook AI，Poly-encoders）</td><td>2019</td><td><a href="https://arxiv.org/abs/1901.04085">1901.04085</a> / <a href="https://arxiv.org/abs/1905.01969">1905.01969</a></td><td class="vs">第 2 章 §6：两阶段检索的开端</td></tr>
+    <tr><td><b>Sentence-BERT</b>（双塔句向量）</td><td>Nils Reimers &amp; Iryna Gurevych（达姆施塔特工业大学）</td><td>2019</td><td><a href="https://arxiv.org/abs/1908.10084">arXiv:1908.10084</a></td><td class="vs">第 2 章：bi-encoder 范式普及者</td></tr>
+    <tr><td><b>端到端稠密检索</b></td><td>ORQA：Kenton Lee 等（Google）；随后 DPR：Karpukhin 等（Facebook AI）系统性胜过 BM25</td><td>2019 / 2020</td><td><a href="https://arxiv.org/abs/1906.00300">1906.00300</a> / <a href="https://arxiv.org/abs/2004.04906">2004.04906</a></td><td class="vs">第 1、2 章：embedding 检索范式奠基</td></tr>
+    <tr><td><b>Late interaction（ColBERT）</b></td><td>Omar Khattab &amp; Matei Zaharia（斯坦福）</td><td>2020</td><td><a href="https://arxiv.org/abs/2004.12832">arXiv:2004.12832</a></td><td class="vs">第 2 章 §6；第 7 章 ColPali 将其迁移到视觉</td></tr>
+    <tr><td><b>SPLADE</b>（learned sparse）</td><td>Thibault Formal 等（Naver Labs Europe）</td><td>2021</td><td><a href="https://arxiv.org/abs/2107.05720">arXiv:2107.05720</a></td><td class="vs">第 2 章：sparse 检索的神经化</td></tr>
+    <tr><td><b>Matryoshka 表示学习</b></td><td>Aditya Kusupati 等（华盛顿大学 + Google）</td><td>2022</td><td><a href="https://arxiv.org/abs/2205.13147">arXiv:2205.13147</a></td><td class="vs">第 2 章：向量维度可截断</td></tr>
+    <tr><td><b>「向量数据库」产品品类</b></td><td>Pinecone（Edo Liberty 创立于 2019）——2021.01 以《Announcing the Pinecone Vector Database》确立品类名；Milvus（Zilliz，2019 开源）当时自称 vector similarity search engine</td><td>2021</td><td><a href="https://www.pinecone.io/blog/announcing-vector-database/">Pinecone 公告</a></td><td class="vs">第 2 章 §4</td></tr>
+    <tr><td><b>MTEB</b></td><td>Niklas Muennighoff 等（Hugging Face）</td><td>2022</td><td><a href="https://arxiv.org/abs/2210.07316">arXiv:2210.07316</a></td><td class="vs">第 2 章：embedding 选型的公共标尺</td></tr>
+  </table>
+</section>
+
+<section id="rag">
+  <h2><span class="n">§4</span>RAG 范式（2020–2024）</h2>
+  <table>
+    <tr><th>概念</th><th>最早提出</th><th>年份</th><th>出处</th><th>在本教程</th></tr>
+    <tr><td><b>「RAG」术语与原始架构</b></td><td>Patrick Lewis 等（Facebook AI Research + UCL + NYU）</td><td>2020</td><td><a href="https://arxiv.org/abs/2005.11401">arXiv:2005.11401</a></td><td class="vs">第 1 章：三次定义漂移的起点</td></tr>
+    <tr><td><b>检索器进预训练</b></td><td>REALM：Kelvin Guu 等（Google）</td><td>2020</td><td><a href="https://arxiv.org/abs/2002.08909">arXiv:2002.08909</a></td><td class="vs">第 1 章</td></tr>
+    <tr><td><b>多段落融合生成</b></td><td>FiD：Gautier Izacard &amp; Édouard Grave（Facebook AI）</td><td>2020</td><td><a href="https://arxiv.org/abs/2007.01282">arXiv:2007.01282</a></td><td class="vs">第 1 章</td></tr>
+    <tr><td><b>检索替代参数规模</b></td><td>RETRO：Sebastian Borgeaud 等（DeepMind）</td><td>2021</td><td><a href="https://arxiv.org/abs/2112.04426">arXiv:2112.04426</a></td><td class="vs">第 1 章</td></tr>
+    <tr><td><b>HyDE</b>（假设文档嵌入）</td><td>Luyu Gao 等（CMU + 滑铁卢大学）</td><td>2022</td><td><a href="https://arxiv.org/abs/2212.10496">arXiv:2212.10496</a></td><td class="vs">第 2 章 §7</td></tr>
+    <tr><td><b>Lost in the Middle</b></td><td>Nelson Liu 等（斯坦福）</td><td>2023</td><td><a href="https://arxiv.org/abs/2307.03172">arXiv:2307.03172</a></td><td class="vs">第 1 章「RAG 已死」反驳；第 2 章 §8 生成侧</td></tr>
+    <tr><td><b>按需检索（反思 token）</b></td><td>Self-RAG：Akari Asai 等（华盛顿大学 + Allen AI + IBM Research）</td><td>2023</td><td><a href="https://arxiv.org/abs/2310.11511">arXiv:2310.11511</a></td><td class="vs">第 7 章 §1</td></tr>
+    <tr><td><b>RAGAS</b>（RAG 评估框架）</td><td>Shahul Es 等（Exploding Gradients，开源社区）</td><td>2023</td><td><a href="https://arxiv.org/abs/2309.15217">arXiv:2309.15217</a></td><td class="vs">第 2 章 §9</td></tr>
+    <tr><td><b>检索纠错与回退</b></td><td>CRAG：Shi-Qi Yan 等</td><td>2024</td><td><a href="https://arxiv.org/abs/2401.15884">arXiv:2401.15884</a></td><td class="vs">第 7 章 §1</td></tr>
+    <tr><td><b>Contextual Retrieval</b></td><td>Anthropic（工程博客，非论文）</td><td>2024.09</td><td><a href="https://www.anthropic.com/engineering/contextual-retrieval">anthropic.com/engineering</a></td><td class="vs">第 2 章 §2</td></tr>
+    <tr><td><b>Late Chunking</b></td><td>Michael Günther 等（Jina AI）</td><td>2024</td><td><a href="https://arxiv.org/abs/2409.04701">arXiv:2409.04701</a></td><td class="vs">第 2 章 §2</td></tr>
+    <tr><td><b>模型自噬 / 递归训练崩塌</b></td><td>Ilia Shumailov 等（牛津 + 剑桥等）</td><td>2023（论文）/ 2024（Nature）</td><td><a href="https://www.nature.com/articles/s41586-024-07566-y">Nature 2024</a></td><td class="vs">第 10、11 章：wiki/dreaming 的反方论据</td></tr>
+  </table>
+</section>
+
+<section id="graph">
+  <h2><span class="n">§5</span>图与树（2019–2025）</h2>
+  <table>
+    <tr><th>概念</th><th>最早提出</th><th>年份</th><th>出处</th><th>在本教程</th></tr>
+    <tr><td><b>Leiden 社区检测</b></td><td>Traag、Waltman、van Eck（莱顿大学 CWTS——算法以大学命名）</td><td>2019</td><td><a href="https://www.nature.com/articles/s41598-019-41695-z">Scientific Reports</a></td><td class="vs">第 4 章 §4</td></tr>
+    <tr><td><b>GraphRAG</b>（社区分层摘要）</td><td>Darren Edge 等（Microsoft Research）</td><td>2024.04</td><td><a href="https://arxiv.org/abs/2404.16130">arXiv:2404.16130</a></td><td class="vs">第 4 章整章</td></tr>
+    <tr><td><b>LightRAG</b>（双层检索）</td><td>Zirui Guo 等（香港大学 HKUDS 实验室）</td><td>2024.10</td><td><a href="https://arxiv.org/abs/2410.05779">arXiv:2410.05779</a></td><td class="vs">第 5 章整章</td></tr>
+    <tr><td><b>HippoRAG</b>（PPR 多跳）</td><td>Bernal Jiménez Gutiérrez 等（俄亥俄州立大学）</td><td>2024.05</td><td><a href="https://arxiv.org/abs/2405.14831">arXiv:2405.14831</a></td><td class="vs">第 7 章 §2</td></tr>
+    <tr><td><b>RAPTOR</b>（递归摘要树）</td><td>Parth Sarthi 等（斯坦福，Manning 组）</td><td>2024.01</td><td><a href="https://arxiv.org/abs/2401.18059">arXiv:2401.18059</a></td><td class="vs">第 6 章 §5</td></tr>
+    <tr><td><b>PageIndex</b>（推理式树搜索）</td><td>Vectify AI（创业公司）</td><td>2025</td><td><a href="https://github.com/VectifyAI/PageIndex">github.com/VectifyAI/PageIndex</a></td><td class="vs">第 6 章整章</td></tr>
+    <tr><td><b>KAG</b>（schema 约束 + 逻辑形式）</td><td>蚂蚁集团 + OpenSPG</td><td>2024</td><td><a href="https://arxiv.org/abs/2409.13731">arXiv:2409.13731</a></td><td class="vs">第 7 章 §3</td></tr>
+    <tr><td><b>双时间轴时序知识图谱（agent 记忆用）</b></td><td>Zep（Graphiti，Preston Rasmussen 等）；bi-temporal 建模思想源于数据库领域（Snodgrass，1990s）</td><td>2024–25</td><td><a href="https://arxiv.org/abs/2501.13956">arXiv:2501.13956</a></td><td class="vs">第 7 章 §6；第 8 章 MiroFish</td></tr>
+  </table>
+</section>
+
+<section id="agentic">
+  <h2><span class="n">§6</span>Agentic、记忆与后台认知（2022–2026）</h2>
+  <table>
+    <tr><th>概念</th><th>最早提出</th><th>年份</th><th>出处</th><th>在本教程</th></tr>
+    <tr><td><b>ReAct</b>（推理 + 行动交替）</td><td>Shunyu Yao 等（普林斯顿 + Google Brain）</td><td>2022</td><td><a href="https://arxiv.org/abs/2210.03629">arXiv:2210.03629</a></td><td class="vs">第 7、8 章：一切 agentic 检索的循环原型</td></tr>
+    <tr><td><b>LLM 分层记忆（OS 类比）</b></td><td>MemGPT：Charles Packer 等（UC Berkeley）</td><td>2023</td><td><a href="https://arxiv.org/abs/2310.08560">arXiv:2310.08560</a></td><td class="vs">第 7 章 §6（Letta 前身）</td></tr>
+    <tr><td><b>技能库（经验→可复用技能）</b></td><td>Voyager：Guanzhi Wang 等（NVIDIA + Caltech 等）</td><td>2023</td><td><a href="https://arxiv.org/abs/2305.16291">arXiv:2305.16291</a></td><td class="vs">第 11 章 §6</td></tr>
+    <tr><td><b>MCP</b>（模型上下文协议）</td><td>Anthropic</td><td>2024.11</td><td><a href="https://www.anthropic.com/news/model-context-protocol">官方公告</a></td><td class="vs">第 10 章：检索变成标准化工具的基础设施</td></tr>
+    <tr><td><b>「context engineering」术语</b></td><td>最早成体系论述：Dex Horthy（HumanLayer，12-Factor Agents，2025.04）；术语明确使用：Walden Yan（Cognition，2025.06.12）；引爆：Tobi Lütke（Shopify，06.19）+ Karpathy（06.25）</td><td>2025.04–06</td><td><a href="https://cognition.com/blog/dont-build-multi-agents">Cognition 博客</a> / <a href="https://x.com/tobi/status/1935533422589399127">Tobi</a> / <a href="https://x.com/karpathy/status/1937902205765607626">Karpathy</a></td><td class="vs">第 1、9、10 章的叙事主线</td></tr>
+    <tr><td><b>「agentic RAG」术语</b></td><td>最早可查证：LlamaIndex 官方博客（Cobus Greyling 署名）；学术定型：Singh et al. 综述</td><td>2024.01 / 2025.01</td><td><a href="https://www.llamaindex.ai/blog/agentic-rag-with-llamaindex-2721b8a49ff6">LlamaIndex 博客</a> / <a href="https://arxiv.org/abs/2501.09136">2501.09136</a></td><td class="vs">第 7 章 §5</td></tr>
+    <tr><td><b>Deep Research 产品形态</b></td><td>Google（Gemini Deep Research，早 OpenAI 约两个月）</td><td>2024.12</td><td><a href="https://blog.google/products/gemini/google-gemini-deep-research/">Google 官方</a></td><td class="vs">第 10 章 §2</td></tr>
+    <tr><td><b>RL 端到端学检索</b></td><td>Search-R1（Jin et al.）与 R1-Searcher（Song et al.）同月发布</td><td>2025.03</td><td><a href="https://arxiv.org/abs/2503.09516">arXiv:2503.09516</a></td><td class="vs">第 10 章 §3</td></tr>
+    <tr><td><b>Sleep-time compute</b></td><td>Kevin Lin、Charlie Snell 等（Letta + UC Berkeley）</td><td>2025.04</td><td><a href="https://arxiv.org/abs/2504.13171">arXiv:2504.13171</a></td><td class="vs">第 11 章 §4</td></tr>
+    <tr><td><b>LLM Daydreaming（DDL）</b></td><td>Gwern Branwen（独立研究者）</td><td>2025.07</td><td><a href="https://gwern.net/ai-daydreaming">gwern.net/ai-daydreaming</a></td><td class="vs">第 11 章 §3</td></tr>
+    <tr><td><b>KV-cache 命中率作为 agent 第一指标</b></td><td>Yichao "Peak" Ji（Manus）</td><td>2025.07</td><td><a href="https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus">Manus 博客</a></td><td class="vs">第 9 章 §1</td></tr>
+    <tr><td><b>llm-wiki 模式</b>（agent 自维护 wiki）</td><td>Andrej Karpathy（独立/前 OpenAI、Tesla）；思想前身 A-MEM（Zettelkasten 式 agent 记忆，2025.02）</td><td>2026.04</td><td><a href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f">gist</a></td><td class="vs">第 10 章 §6、第 11 章 §2</td></tr>
+    <tr><td><b>「agent dreaming」产品化</b></td><td>Anthropic（Claude Dreaming）；术语双源：Letta 同期将 sleep-time 别名为 agent dreaming</td><td>2026.05–06</td><td><a href="https://www.letta.com/blog/towards-agents-that-learn/">Letta</a> / Forbes 报道</td><td class="vs">第 11 章 §5</td></tr>
+  </table>
+</section>
+
+<section id="parsing">
+  <h2><span class="n">§7</span>文档解析（1985–2025）</h2>
+  <table>
+    <tr><th>概念</th><th>最早提出</th><th>年份</th><th>出处</th><th>在本教程</th></tr>
+    <tr><td><b>Tesseract OCR</b></td><td>HP 实验室（Ray Smith 等），2005 开源，后由 Google 维护</td><td>1985–95</td><td><a href="https://github.com/tesseract-ocr/tesseract">GitHub</a></td><td class="vs">第 3 章：传统 OCR 的代表</td></tr>
+    <tr><td><b>端到端学术文档→Markdown</b></td><td>Nougat：Lukas Blecher 等（Meta AI）</td><td>2023</td><td><a href="https://arxiv.org/abs/2308.13418">arXiv:2308.13418</a></td><td class="vs">第 3 章 §3：VLM 解析浪潮先驱</td></tr>
+    <tr><td><b>统一文档解析基准</b></td><td>OmniDocBench：上海人工智能实验室（OpenDataLab）</td><td>2024</td><td><a href="https://arxiv.org/abs/2412.07626">arXiv:2412.07626</a></td><td class="vs">第 3 章 §4</td></tr>
+    <tr><td><b>免解析视觉检索</b></td><td>ColPali：Manuel Faysse 等（CentraleSupélec + Illuin Technology）</td><td>2024</td><td><a href="https://arxiv.org/abs/2407.01449">arXiv:2407.01449</a></td><td class="vs">第 3 章 §8、第 7 章 §4</td></tr>
+    <tr><td><b>上下文光学压缩</b></td><td>DeepSeek-OCR（DeepSeek AI）</td><td>2025.10</td><td><a href="https://arxiv.org/abs/2510.18234">arXiv:2510.18234</a></td><td class="vs">第 3 章 §3、第 7 章 §4</td></tr>
+  </table>
+  <div class="box key">
+    <div class="t"><span class="ic">规律</span>这张家谱的三个模式</div>
+    <p>① <b>思想的半衰期远长于产品</b>——Memex（1945）→ wiki（1995）→ llm-wiki（2026）；海马体索引（1986）→ HippoRAG（2024）；CLS（1995）→ Auto-Dreamer（2026）。RAG 领域最有生命力的想法几乎都是「老思想 + 新算力」。② <b>基础组件来自学界与大厂研究院</b>（斯坦福、滑铁卢、Google、Meta FAIR、MSR），<b>而范式转折点越来越多来自个人与小团队</b>——Gwern、Karpathy、Vectify、Letta。③ <b>神经科学是这个领域被低估的上游</b>：DMN、海马体索引、CLS、REM 巩固——第 7 和 11 章的四个关键系统都直接引用脑科学文献命名自己。</p>
+  </div>
+</section>
+
+<div class="pagenav">
+  <a href="11-background.html"><span class="lbl">← 上一页</span><div class="ti">自维护知识库</div></a>
+  <a href="index.html" class="next"><span class="lbl">返回 →</span><div class="ti">学习地图</div></a>
+</div>
+<footer>knowledge-base-learning · 附录 · 全部归属经 2026-07 专项核实（含 10 项存疑项逐条查证），口径与出处逐条标注</footer>
+</main>
+</div>
+</body>
+</html>

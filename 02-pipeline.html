@@ -20,6 +20,7 @@
     <li><a href="#retrieval">检索：Dense / Sparse / Hybrid</a></li>
     <li><a href="#rerank">重排序：Cross-Encoder 与 ColBERT</a></li>
     <li><a href="#query">查询变换：HyDE 等</a></li>
+    <li><a href="#generation">生成侧：组装与引用</a></li>
     <li><a href="#eval">评估：RAGAS 与检索指标</a></li>
     <li><a href="#checklist">生产配置清单</a></li>
     <li><a href="#refs">参考资料</a></li>
@@ -38,6 +39,7 @@
     <li><a href="09-industry.html">工业界产品拆解</a></li>
     <li><a href="10-recent.html">2025–26 编年</a></li>
     <li><a href="11-background.html">自维护知识库</a></li>
+    <li><a href="appendix-origins.html">附录 · 概念溯源</a></li>
   </ol>
 </nav>
 <main>
@@ -52,6 +54,11 @@
     <span class="pill">评估 <b>recall@k + RAGAS</b></span>
   </div>
 </header>
+
+<div class="box tip">
+  <div class="t"><span class="ic">速读</span>十行速读版（赶时间只看这里）</div>
+  <p>① 解析决定上限（第 3 章）；② chunking 用 recursive 512 token + 10% overlap，语义分块不划算（实证 69% vs 54%）；③ embedding 在自己语料上测 recall@k 再选，MTEB 榜单仅供初筛；④ 索引默认 pgvector HNSW；⑤ 检索必须 hybrid（dense + BM25）+ RRF(k=60)——收益是砍掉最差情况；⑥ 重排 cross-encoder 取 top-5，nDCG@10 +5–15 点，是性价比最高的一段；⑦ 查询变换先不加，有明确失败模式再上；⑧ 生成侧把最强证据放上下文首尾（lost-in-the-middle）；⑨ 没有 100 对评估集之前，以上都是猜；⑩ 完整配置抄 §10 清单。</p>
+</div>
 
 <section id="overview">
   <h2><span class="n">§1</span>全链路总览</h2>
@@ -325,7 +332,7 @@
     <li><b>ColPali</b>（第 3、7 章）就是把 late interaction 原封搬到视觉上：页面截图 → VLM 编码成 patch 网格多向量，query token 对 patch 做 MaxSim——「多向量 + MaxSim」是可迁移模式，不绑定文本。</li>
     <li><b>LLM-as-reranker</b>（RankGPT 一类）是 cross-encoder 的当代变体：直接让 LLM 对候选做 pointwise 打分或 listwise 排序。更灵活（可加指令如「优先最新版本文档」），但延迟成本高一截，适合离线评估或低 QPS 高价值场景。</li>
   </ul>
-  <p class="sub">实践选择：默认 hybrid 召回 + cross-encoder 精排（§9 清单）；cross-encoder p99 扛不住或查询全是代码符号/型号时考虑 ColBERT；两阶段都上不起就先保证 hybrid + RRF。</p>
+  <p class="sub">实践选择：默认 hybrid 召回 + cross-encoder 精排（§10 清单）；cross-encoder p99 扛不住或查询全是代码符号/型号时考虑 ColBERT；两阶段都上不起就先保证 hybrid + RRF。</p>
 </section>
 
 <section id="query">
@@ -341,8 +348,20 @@
   <p class="sub">实证提醒：ARAGOG 评测（arXiv:2404.01037）显示这些技巧的收益高度依赖数据集——每个都要在自己的评估集上验证后再上线，它们同时都会增加一次 LLM 调用的延迟。</p>
 </section>
 
+<section id="generation">
+  <h2><span class="n">§8</span>生成侧：检索之后、答案之前</h2>
+  <p>检索拿对了素材，答案还可能砸在最后一公里。生成侧的三个决策点常被教程忽略：</p>
+  <table>
+    <tr><th>决策点</th><th>机制</th><th>实践</th></tr>
+    <tr><td><b>上下文组装顺序</b></td><td>「Lost in the Middle」（Liu et al. 2023，斯坦福）：模型对长上下文的注意力呈 U 形——开头和结尾强，中间弱</td><td class="vs">把重排分最高的证据放<b>首尾</b>，弱证据放中间；chunk 间用来源标题分隔，不要裸拼接</td></tr>
+    <tr><td><b>引用生成</b></td><td>给每个 chunk 编号（[1][2]…），要求答案句级引用，生成后可程序化校验「引用的 chunk 是否真含该论断」</td><td class="vs">GraphRAG 的 <code>[Data: Entities (ids)]</code> 格式（第 4 章）和 LightRAG 的 Reference List（第 5 章）是两个现成范本；「不含引用的信息不写」是最有效的一条约束</td></tr>
+    <tr><td><b>忠实性护栏</b></td><td>系统提示三件套：只准用提供的 context、自己的知识仅用于组织语言、答不了要明说（给拒答出口）</td><td class="vs">上线后用 RAGAS faithfulness 抽样监控（§9）；拒答率突然下降往往意味着模型开始编——比幻觉率上升更早出现的信号</td></tr>
+  </table>
+  <p class="sub">更深的生成侧问题——多轮对话的上下文管理、压缩与记忆——已经超出单发管道，属于第 7 章 §6 与第 11 章的范围。</p>
+</section>
+
 <section id="eval">
-  <h2><span class="n">§8</span>评估：没有评估集，一切都是猜</h2>
+  <h2><span class="n">§9</span>评估：没有评估集，一切都是猜</h2>
   <p>评估分两层：<b>检索质量</b>（素材有没有拿对）和<b>生成质量</b>(答案有没有用对素材)。</p>
   <h3>检索指标</h3>
   <table>
@@ -363,7 +382,7 @@
 </section>
 
 <section id="checklist">
-  <h2><span class="n">§9</span>生产配置清单</h2>
+  <h2><span class="n">§10</span>生产配置清单</h2>
   <p>把本章压缩成一张可以直接抄的默认配置表——每一项都可被你的评估集推翻：</p>
   <table>
     <tr><th>环节</th><th>起手默认</th><th>升级触发条件</th></tr>
@@ -380,7 +399,7 @@
 </section>
 
 <section id="refs" class="refs">
-  <h2><span class="n">§10</span>参考资料</h2>
+  <h2><span class="n">§11</span>参考资料</h2>
   <ul>
     <li><span class="rt">Chunking 策略实证对比</span> — <a href="https://www.firecrawl.dev/blog/best-chunking-strategies-rag">Firecrawl: Best Chunking Strategies for RAG</a>（含 NAACL 2025 Findings 固定分块结论）；<a href="https://langcopilot.com/posts/2025-10-11-document-chunking-for-rag-practical-guide">LangCopilot: Document Chunking Practical Guide</a>（含 Vecta 2026.02 七策略基准）</li>
     <li><span class="rt">Late Chunking</span> — Günther et al. (Jina AI). <a href="https://arxiv.org/abs/2409.04701">arxiv.org/abs/2409.04701</a></li>
@@ -393,6 +412,7 @@
     <li><span class="rt">ColBERT</span> — Khattab &amp; Zaharia, SIGIR 2020. <a href="https://arxiv.org/abs/2004.12832">arxiv.org/abs/2004.12832</a>；<span class="rt">ColBERTv2（残差压缩）</span> — <a href="https://arxiv.org/abs/2112.01488">arxiv.org/abs/2112.01488</a>；<span class="rt">PLAID 检索引擎</span> — <a href="https://arxiv.org/abs/2205.09707">arxiv.org/abs/2205.09707</a></li>
     <li><span class="rt">LLM-as-reranker（RankGPT）</span> — Sun et al., EMNLP 2023. <a href="https://arxiv.org/abs/2304.09542">arxiv.org/abs/2304.09542</a></li>
     <li><span class="rt">HyDE</span> — <a href="https://arxiv.org/abs/2212.10496">arxiv.org/abs/2212.10496</a>（解读：<a href="https://www.emergentmind.com/topics/hypothetical-document-embeddings-hyde">EmergentMind</a>）；<span class="rt">Step-back</span> — <a href="https://arxiv.org/abs/2310.06117">arxiv.org/abs/2310.06117</a>；<span class="rt">ARAGOG 技巧实证评测</span> — <a href="https://arxiv.org/abs/2404.01037">arxiv.org/abs/2404.01037</a></li>
+    <li><span class="rt">Lost in the Middle</span> — Liu et al., Stanford, TACL 2024. <a href="https://arxiv.org/abs/2307.03172">arxiv.org/abs/2307.03172</a></li>
     <li><span class="rt">检索评估指标</span> — <a href="https://weaviate.io/blog/retrieval-evaluation-metrics">Weaviate: Retrieval Evaluation Metrics</a></li>
     <li><span class="rt">RAGAS 四指标</span> — <a href="https://docs.ragas.io/en/v0.1.21/concepts/metrics/">docs.ragas.io</a>；<a href="https://www.confident-ai.com/blog/rag-evaluation-metrics-answer-relevancy-faithfulness-and-more">Confident AI: RAG Evaluation Metrics</a></li>
   </ul>

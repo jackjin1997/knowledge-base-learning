@@ -25,5 +25,6 @@ python3 -m http.server 8931 --directory knowledge-base-learning
 | 09 | `09-industry.html` | 工业界产品拆解：Manus 上下文工程、Kimi agentic RL 搜索、豆包法条场景与火山引擎知识库栈、法律垂直 RAG 对照 |
 | 10 | `10-recent.html` | 2025–2026 编年：deep research 普及、RL 学检索谱系、记忆系统演化、context engineering 学科化、Agent+Wiki 专题（DeepWiki / Karpathy llm-wiki）（含 2026 上半年实时调研） |
 | 11 | `11-background.html` | 自维护知识库：agentic wiki、Gwern Daydreaming、Letta 睡眠计算、Claude Dreaming——「后台认知层」+ 体系边界声明 |
+| 附录 | `appendix-origins.html` | 概念溯源：50+ 核心概念的最早提出者 / 组织 / 年份 / 原始出处 |
 
 样式：`assets/style.css`（全系列共享）。代码引用行号基于 2026-07 的本地仓库检出，仓库更新后行号可能漂移。
